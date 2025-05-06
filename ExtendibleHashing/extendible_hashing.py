@@ -60,27 +60,26 @@ class HashIndex:
 
         if not os.path.exists(index_filename): 
             with open(index_filename,  "wb") as index_file: # Creo archivo index si no existe
-                index_file.write(pack(INDEX_FORMAT, "0".encode(), 1)) # Índice 0 (binary=0, d=1)
-                index_file.write(pack(INDEX_FORMAT, "1".encode(), 1)) # Índice 1 (binary=1, d=1)
+                index_file.write(pack(INDEX_FORMAT, "0".encode(), 0)) # Índice 0 (binary=0, #bucket 0)
+                index_file.write(pack(INDEX_FORMAT, "1".encode(), 1)) # Índice 1 (binary=1, #bucket 1)
             
             self.index["0"] = 0 
             self.index["1"] = 1
                 
             #TODO: limpiar esta parte
             with open(buckets_filename, "wb") as bucket_file: # Creo archivo bucket e inserto buckets iniciales
-                b0 = Bucket(0,1)
+                b0 = Bucket(0,1) # Bucket 0, d=1
                 all_fields = []
                 for reg in b0.items: # Reservar espacio para fb elementos (inserto registros vacios inicialmente)
                     all_fields.extend(reg.to_fields())
                 bucket_file.write(pack(BUCKET_FORMAT, b0.bucket_id, b0.d, b0.next, b0.size, *all_fields))
 
-                b1 = Bucket(1,1)
+                b1 = Bucket(1,1) # Bucket 1, d=1
                 all_fields = []
                 for reg in b1.items:
                     all_fields.extend(reg.to_fields())
                 bucket_file.write(pack(BUCKET_FORMAT, b1.bucket_id, b1.d, b1.next, b1.size, *all_fields))
                 
-
         else: 
             #Abrir índice existente
             with open(index_filename, "rb") as index_file: 
@@ -91,16 +90,16 @@ class HashIndex:
                         break
                     
                     binary, number = unpack(INDEX_FORMAT, data)
-                    self.index[binary.decode().strip()] = number 
+                    print("bin ", len(binary.decode()))
+                    self.index[binary.decode().rstrip('\x00')] = number #this is writing \x00 aaaa TODO FIX  
 
     def insert(self, reg):  
-        #update index file in dict and file itself if split
         bucket_binary = bin(int(reg.isbn) % (2^self.D))[2:]
+        print(self.index)
         bucket_number  = self.index[bucket_binary]
-
         #TODO: verificar si existe realmente caso donde no se encuentra el numero de bucket
 
-        with open(self.buckets_filename, "w+b") as bucket_file:
+        with open(self.buckets_filename, "r+b") as bucket_file:
 
             #Encontrar el header del bucket
             bucket_file.seek(bucket_number * BUCKET_SIZE)
@@ -117,23 +116,22 @@ class HashIndex:
 
             if bucket_size < fb: 
                 # Hay espacio, inserto
-                bucket_file.seek(calcsize("iiii") + bucket_number * BUCKET_SIZE) # Posición "size" del header
-                bucket_file.write("i", bucket_size+1) # Actualizo size
+                bucket_file.seek(calcsize("iii") + bucket_number * BUCKET_SIZE) # Posición "size" del header
+                bucket_file.write(pack("i", bucket_size+1)) # Actualizo size
 
-                bucket_file.seek((bucket_size+1) + bucket_number * BUCKET_SIZE) # Posición especifica del bucket
+                #bucket_file.seek(bucket_size + bucket_number * BUCKET_SIZE) # Posición especifica del bucket
                 # Sobreescribo registro en blanco por registro real
-                bucket_file.write(pack(REGISTER_FORMAT, 
-                                  reg.isbn.encode(),
-                                  reg.title.encode(),
-                                  reg.year.encode(),
-                                  reg.author.encode(),
-                                  reg.publisher.encode()))
+                #bucket_file.write(pack(REGISTER_FORMAT, 
+                #                  reg.isbn.encode(),
+                #                  reg.title.encode(),
+                #                  reg.year.encode(),
+                #                  reg.author.encode(),
+                #                  reg.publisher.encode()))
                 
             else: 
                 #Verifico recursivamente next hasta encontrar bucket con espacio
                 pass
-
-            
+          
     def search(self):
         pass
 
@@ -199,11 +197,11 @@ hash_index_reopen.print_data()
 # Test insert # 
 reg1 = Registro("195153448","Classical Mythology","Mark P. O. Morford","2002","Oxford University Press")
 reg2 = Registro("2005018","Clara Callan","Richard Bruce Wright","2001","HarperFlamingo Canada")
-hash_index.insert(reg1)
-hash_index.insert(reg2)
+hash_index_reopen.insert(reg1)
+hash_index_reopen.insert(reg2)
+hash_index_reopen.print_index()
+hash_index_reopen.print_data()
 
-#hash_index.insert(7)
-#hash_index.insert(9)
 
 os.remove("data.bin")
 os.remove("hash_index.bin")
