@@ -104,9 +104,6 @@ class HashIndex:
             #Encontrar el header del bucket
             bucket_file.seek(bucket_number * BUCKET_SIZE)
             data = bucket_file.read(calcsize("iiii"))
-            if len(data) < calcsize("iiii"):    #debug
-                raise ValueError(f"Expected 16 bytes, got {len(data)}. Possibly EOF or corrupt file.") #debug
-            
             unpacked_data = unpack("iiii", data)
                 
             bucket_id = unpacked_data[0]
@@ -119,18 +116,50 @@ class HashIndex:
                 bucket_file.seek(calcsize("iii") + bucket_number * BUCKET_SIZE) # Posición "size" del header
                 bucket_file.write(pack("i", bucket_size+1)) # Actualizo size
 
-                #bucket_file.seek(bucket_size + bucket_number * BUCKET_SIZE) # Posición especifica del bucket
+                bucket_file.seek(calcsize("iiii") + (bucket_size*RECORD_SIZE) + (bucket_number*BUCKET_SIZE)) # Posición especifica del bucket
                 # Sobreescribo registro en blanco por registro real
-                #bucket_file.write(pack(REGISTER_FORMAT, 
-                #                  reg.isbn.encode(),
-                #                  reg.title.encode(),
-                #                  reg.year.encode(),
-                #                  reg.author.encode(),
-                #                  reg.publisher.encode()))
-                
+                bucket_file.write(pack(REGISTER_FORMAT, 
+                                  reg.isbn.encode(),
+                                  reg.title.encode(),
+                                  reg.year.encode(),
+                                  reg.author.encode(),
+                                  reg.publisher.encode()))              
             else: 
                 #Verifico recursivamente next hasta encontrar bucket con espacio
-                pass
+                while next_bucket == -1:
+                    #Encontrar el header del bucket
+                    bucket_file.seek(next_bucket * BUCKET_SIZE)
+                    data = bucket_file.read(calcsize("iiii"))
+                    unpacked_data = unpack("iiii", data)
+                        
+                    bucket_id = unpacked_data[0]
+                    d = unpacked_data[1]
+                    next_bucket = unpacked_data[2]
+                    bucket_size = unpacked_data[3]
+
+                # Ya encontré el bucket, verifico si está lleno
+                if bucket_size < fb: 
+                                    # Hay espacio, inserto
+                    bucket_file.seek(calcsize("iii") + bucket_number * BUCKET_SIZE) # Posición "size" del header
+                    bucket_file.write(pack("i", bucket_size+1)) # Actualizo size
+
+                    bucket_file.seek(calcsize("iiii") + (bucket_size*RECORD_SIZE) + (bucket_number*BUCKET_SIZE)) # Posición especifica del bucket
+                    # Sobreescribo registro en blanco por registro real
+                    bucket_file.write(pack(REGISTER_FORMAT, 
+                                    reg.isbn.encode(),
+                                    reg.title.encode(),
+                                    reg.year.encode(),
+                                    reg.author.encode(),
+                                    reg.publisher.encode()))    
+                else: 
+                    # Overflow, hago split
+                    #verifico cual es el ultimo bucket
+                    #bucket_file.seek(0, 2 - cuatro regs, leer header, ver numero bucket, el nuevo split sera ese num mas 1)
+                    pass
+                    #bucket_file.seek(calcsize("ii") + bucket_number * BUCKET_SIZE) # Posición "next" del header
+                    #bucket_file.write(pack("i", bucket_size+1)) # Actualizo size
+
+                
           
     def search(self):
         pass
