@@ -4,12 +4,12 @@ import sys
 import os
 
 fb = 4          # Factor de balanceo, cantidad maxima de elementos en un bucket
-MAX_DEPTH = 3   # Profundidad global maxima
+D = 3   # Profundidad global maxima
 
 BUCKET_FORMAT= f'iiii{fb*REGISTER_FORMAT}' # Bucket number, depth, next, size, fb espacios/registros
 BUCKET_SIZE = calcsize(BUCKET_FORMAT) 
 
-INDEX_FORMAT = f'{MAX_DEPTH}si' # String de longitud MAX_DEPTH y numero de bucket
+INDEX_FORMAT = f'{D}si' # String de longitud D y numero de bucket
 INDEX_SIZE = calcsize(INDEX_FORMAT)
 
 
@@ -26,8 +26,8 @@ Bucket 1, d=1, next=-1, size=2
 """
 
 class Bucket: 
-    def __init__(self, bucket_id, d, items=[Registro("A", "A", "A", "A", "A") for _ in range(fb)]):
-        self.d = d                  # Profundidad local
+    def __init__(self, bucket_id, d, items=[Registro("", "", "", "", "") for _ in range(fb)]):
+        self.d = d                  # Profundidad local, para saber si puedo splitear o ya no
         self.bucket_id = bucket_id  # ID del bucket, en decimal
         self.next = -1              # Siguiente bucket enlazado
         self.items = items          # Crear fb registros vacios (reservar espacio)
@@ -56,7 +56,6 @@ class HashIndex:
         self.index_filename = index_filename
         self.buckets_filename = buckets_filename
         self.index = {} # Hash index, mientras estoy trabajando sobre ello queda en ram
-        self.D = 1 # Profundidad global, aumenta conforme hago split
 
         if not os.path.exists(index_filename): 
             with open(index_filename,  "wb") as index_file: # Creo archivo index si no existe
@@ -90,12 +89,10 @@ class HashIndex:
                         break
                     
                     binary, number = unpack(INDEX_FORMAT, data)
-                    print("bin ", len(binary.decode()))
                     self.index[binary.decode().rstrip('\x00')] = number #this is writing \x00 aaaa TODO FIX  
 
     def insert(self, reg):  
-        bucket_binary = bin(int(reg.isbn) % (2^self.D))[2:]
-        print(self.index)
+        bucket_binary = bin(int(reg.isbn) % (2**D))[2:]
         bucket_number  = self.index[bucket_binary]
         #TODO: verificar si existe realmente caso donde no se encuentra el numero de bucket
 
@@ -128,6 +125,7 @@ class HashIndex:
                 #Verifico recursivamente next hasta encontrar bucket con espacio
                 while next_bucket == -1:
                     #Encontrar el header del bucket
+                    print("next_bucket: ", next_bucket)
                     bucket_file.seek(next_bucket * BUCKET_SIZE)
                     data = bucket_file.read(calcsize("iiii"))
                     unpacked_data = unpack("iiii", data)
@@ -159,11 +157,49 @@ class HashIndex:
                     #bucket_file.seek(calcsize("ii") + bucket_number * BUCKET_SIZE) # Posición "next" del header
                     #bucket_file.write(pack("i", bucket_size+1)) # Actualizo size
 
-                
-          
-    def search(self):
-        pass
+                        
+    def search(self, key):
+        bucket_binary = bin(int(key) % (2**D))[2:]
+        bucket_number  = self.index[bucket_binary]
 
+        with open(self.buckets_filename, "rb") as bucket_file:
+            while True: 
+                start_pos = calcsize("iiii") + bucket_number * BUCKET_SIZE # Posición del primer registro del bucket
+                for i in range(fb): 
+                    bucket_file.seek(start_pos + i*RECORD_SIZE) # Registro i del bucket
+                    data = bucket_file.read(RECORD_SIZE)
+
+                    if not data: 
+                        return None # No se encontró el registro
+                    
+                    isbn, title, year, author, publisher = unpack(REGISTER_FORMAT, data)
+ 
+                    reg = Registro(isbn.decode().rstrip('\x00'), #rstrip para quitar null bytes (strip solo quita tabs y espacios)
+                                    title.decode().strip(),
+                                    year.decode().strip(),
+                                    author.decode().strip(),
+                                    publisher.decode().strip())   
+                    
+                    print(key, reg.isbn)
+                    print(len(key), len(reg.isbn)) #when reg matches its reg.code is having len 256 for some reason
+
+                    if reg.isbn == key: 
+                        return reg  # Encontré el registro
+                    elif reg.isbn == "":
+                        return None # No se encontró el registro
+                    
+                # Voy al siguiente bucket linkeado
+                bucket_file.seek(calcsize("ii") + bucket_number * BUCKET_SIZE) # Posición "next" del header del bucket
+                
+                next_bucket = unpack('i', bucket_file.read(calcsize('i')))[0] #Tomo solo el primer valor de la tupla, valor de next
+
+                if next_bucket == -1: 
+                    print(f"No existe registro con id {key}")
+                    return None
+                else: 
+                    bucket_number = next_bucket # Voy al siguiente bucket par iterar sobre ello
+
+                      
     def remove(self):
         pass
             
@@ -214,13 +250,13 @@ class HashIndex:
 #Testing#
 print("Creating...")
 hash_index = HashIndex("hash_index.bin")
-hash_index.print_index()
-hash_index.print_data()
+#hash_index.print_index()
+#hash_index.print_data()
 
 print("Reopening...")
 hash_index_reopen = HashIndex("hash_index.bin")
-hash_index_reopen.print_index()
-hash_index_reopen.print_data()
+#hash_index_reopen.print_index()
+#hash_index_reopen.print_data()
 
 
 # Test insert # 
@@ -231,6 +267,13 @@ hash_index_reopen.insert(reg2)
 hash_index_reopen.print_index()
 hash_index_reopen.print_data()
 
+key = "2005018"
+search_reg = hash_index_reopen.search(key)
+if search_reg == None: 
+    print(f"No se encontró el registro con el key {key}")
+else: 
+    print("registro encontrado")
+    search_reg.print_reg()
 
 os.remove("data.bin")
 os.remove("hash_index.bin")
