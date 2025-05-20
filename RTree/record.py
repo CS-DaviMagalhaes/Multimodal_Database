@@ -92,12 +92,14 @@ class RecordFile:
         """
         pass
 
-    def search(self, key):
+    def search(self, lon, lat):
         """
         Búsqueda dentro del archivo. Se
         apoya en el método del RTree.
         """
-        pass
+        coords = (lon, lat)
+        match_idx = self.index.search(coords)
+        return match_idx[0]
 
     def range_search(self, begin_key, end_key):
         """
