@@ -118,7 +118,21 @@ class RecordFile:
         min_coords = (min_lon, min_lat)
         max_coords = (max_lon, max_lat)
         match_ids = self.index.range_search(min_coords, max_coords)
-        # Do something with the match index
+        
+        if not match_ids:
+            return None
+
+        found_records = []
+
+        with open(self.filename, 'rb') as file:
+            for idx in match_ids:
+                file.seek(idx)
+                record_bytes = file.read(Record.SIZE)
+                if len(record_bytes) == Record.SIZE:
+                    record = Record.unpack(record_bytes)
+                    found_records.append(record)
+        
+        return found_records
 
     def remove(self, key):
         """
