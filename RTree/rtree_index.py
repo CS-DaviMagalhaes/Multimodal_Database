@@ -4,7 +4,9 @@ from record import Record
 class RTreeIndex:
     """
     Manejo de archivos fisicos usando un índice bajo una estructura RTree.
-    La metadata maneja {key : (long, lat)} para cada registro del archivo
+    La metadata maneja {key : (lon, lat)} para cada registro del archivo.
+    La libreria no maneja puntos directamente, sino como boxes de area 0.
+    Para manejar puntos (lon, lat), crear box (lon, lat, lon, lat)
     """
     def __init__(self, index_name="rtree_index", main_file="main_records.dat", record_size=None):        
         self.main_file = main_file
@@ -18,9 +20,8 @@ class RTreeIndex:
 
     def add(self, data):
         """
-        Insertamos un record al árbol .Asumimos que la data
+        Insertamos un record al árbol. Asumimos que la data
         viene enpaquetada antes de insertar al RTree.
-        La librería maneja puntos como rectangulos de area 0.
         """
         rec = Record.unpack(data)
         idx = rec.id
@@ -32,7 +33,7 @@ class RTreeIndex:
         """
         TODO: interpretar search() adecuado para RTree.
         Por mientras, aplicar spatial query sobre un rectangulo pequeño.
-        Devuelve unicamente los ids
+        Devuelve unicamente el id del record (normalmente 1).
         """
         lon, lat = key
         eps = 1e-7
