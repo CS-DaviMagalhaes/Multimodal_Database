@@ -51,9 +51,11 @@ class RTreeIndex:
         match_ids = list(self.rtree_idx.intersection(query))
         return match_ids
 
-    def erase(self, key):
+    def erase(self, key, coords):
         """
         Eliminacion de un record en específico.
-        Falta ver como lo hace xd
+        Le pasamos la key y las coordenadas del punto.
         """
-        pass
+        lon, lat = coords
+        point = (lon, lat, lon, lat)
+        self.rtree_idx.delete(key, point)
