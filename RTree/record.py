@@ -99,14 +99,18 @@ class RecordFile:
         """
         coords = (lon, lat)
         match_idx = self.index.search(coords)
-        return match_idx[0]
+        # Do something with the match index
+        pass
 
-    def range_search(self, begin_key, end_key):
+    def range_search(self, min_lon, min_lat, max_lon, max_lat):
         """
         Búsqueda de rango dentro del archivo.
         Se apoya en el método del RTree.
         """
-        pass
+        min_coords = (min_lon, min_lat)
+        max_coords = (max_lon, max_lat)
+        match_ids = self.index.range_search(min_coords, max_coords)
+        # Do something with the match index
 
     def remove(self, key):
         """
