@@ -98,9 +98,17 @@ class RecordFile:
         apoya en el método del RTree.
         """
         coords = (lon, lat)
-        match_idx = self.index.search(coords)
-        # Do something with the match index
-        pass
+        match_idx = self.index.search(coords)[0]
+        
+        if not match_idx:
+            return None
+
+        with open(self.filename, 'rb') as file:
+            file.seek(match_idx)
+            record_bytes = file.read(Record.SIZE)
+            if len(record_bytes) == Record.SIZE:
+                record = Record.unpack(record_bytes)
+                return record
 
     def range_search(self, min_lon, min_lat, max_lon, max_lat):
         """
