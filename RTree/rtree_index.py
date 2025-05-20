@@ -45,7 +45,11 @@ class RTreeIndex:
         Buscar puntos dentro de un box definido por (begin_key) y (end_key).
         Devuelve unicamente los indices que debe leer la clase principal
         """
-        pass
+        min_lon, min_lat = begin_key
+        max_lon, max_lat = end_key
+        query = (min_lon, min_lat, max_lon, max_lat)
+        match_ids = list(self.rtree_idx.intersection(query))
+        return match_ids
 
     def erase(self, key):
         """
