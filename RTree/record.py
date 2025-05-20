@@ -85,13 +85,6 @@ class RecordFile:
         # Confirmado el insert, pasamos al RTree
         self.index.add(record)
 
-    def read(self, pos):
-        """
-        Lee un registro en cierta posición
-        dentro del archivo
-        """
-        pass
-
     def search(self, lon, lat):
         """
         Búsqueda dentro del archivo. Se
@@ -104,7 +97,7 @@ class RecordFile:
             return None
 
         with open(self.filename, 'rb') as file:
-            file.seek(match_idx)
+            file.seek(self.HEADER_SIZE + match_idx * Record.SIZE)
             record_bytes = file.read(Record.SIZE)
             if len(record_bytes) == Record.SIZE:
                 record = Record.unpack(record_bytes)
@@ -126,7 +119,7 @@ class RecordFile:
 
         with open(self.filename, 'rb') as file:
             for idx in match_ids:
-                file.seek(idx)
+                file.seek(self.HEADER_SIZE + idx * Record.SIZE)
                 record_bytes = file.read(Record.SIZE)
                 if len(record_bytes) == Record.SIZE:
                     record = Record.unpack(record_bytes)
@@ -140,7 +133,7 @@ class RecordFile:
         """
         coords = (None, None)
         with open(self.filename, 'rb') as file:
-            file.seek(key)
+            file.seek(self.HEADER_SIZE + key * Record.SIZE)
             record_bytes = file.read(Record.SIZE)
             if len(record_bytes) == Record.SIZE:
                 record = Record.unpack(record_bytes)
