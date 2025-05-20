@@ -28,12 +28,17 @@ class RTreeIndex:
 
         self.rtree_idx.insert(idx, point)
 
-    def search(self, lat, lon):
+    def search(self, key):
         """
-        TODO: interpretar search() para RTree.
-        Por mientras, aplicar KNN() sobre un rectangulo pequeño (k=1)
+        TODO: interpretar search() adecuado para RTree.
+        Por mientras, aplicar spatial query sobre un rectangulo pequeño.
+        Devuelve unicamente los ids
         """
-        pass
+        lon, lat = key
+        eps = 1e-7
+        query = (lon-eps, lat-eps, lon+eps, lat+eps)
+        match_ids = list(self.rtree_idx.intersection(query))
+        return match_ids
 
     def range_search(self, begin_key, end_key):
         """
