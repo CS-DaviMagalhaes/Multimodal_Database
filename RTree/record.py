@@ -138,4 +138,13 @@ class RecordFile:
         """
         Borra elementos usando el método dentro del RTree.
         """
-        pass
+        coords = (None, None)
+        with open(self.filename, 'rb') as file:
+            file.seek(key)
+            record_bytes = file.read(Record.SIZE)
+            if len(record_bytes) == Record.SIZE:
+                record = Record.unpack(record_bytes)
+                coords = (record.lon, record.lat)
+        
+        self.index.erase(key, coords)
+                
