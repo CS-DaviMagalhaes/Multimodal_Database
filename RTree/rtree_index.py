@@ -29,25 +29,25 @@ class RTreeIndex:
 
         self.rtree_idx.insert(idx, point)
 
-    def search(self, key):
+    def search(self, coords):
         """
         TODO: interpretar search() adecuado para RTree.
         Por mientras, aplicar spatial query sobre un rectangulo pequeño.
         Devuelve unicamente el id del record (normalmente 1).
         """
-        lon, lat = key
+        lon, lat = coords
         eps = 1e-7
         query = (lon-eps, lat-eps, lon+eps, lat+eps)
         match_ids = list(self.rtree_idx.intersection(query))
         return match_ids
 
-    def range_search(self, begin_key, end_key):
+    def range_search(self, begin_coords, end_coords):
         """
         Buscar puntos dentro de un box definido por (begin_key) y (end_key).
         Devuelve unicamente los indices que debe leer la clase principal
         """
-        min_lon, min_lat = begin_key
-        max_lon, max_lat = end_key
+        min_lon, min_lat = begin_coords
+        max_lon, max_lat = end_coords
         query = (min_lon, min_lat, max_lon, max_lat)
         match_ids = list(self.rtree_idx.intersection(query))
         return match_ids
