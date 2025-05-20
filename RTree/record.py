@@ -131,6 +131,8 @@ class RecordFile:
         """
         Borra elementos usando el método dentro del RTree.
         """
+
+        # Buscamos las coordenadas del record
         coords = (None, None)
         with open(self.filename, 'rb') as file:
             file.seek(self.HEADER_SIZE + key * Record.SIZE)
@@ -139,5 +141,13 @@ class RecordFile:
                 record = Record.unpack(record_bytes)
                 coords = (record.lon, record.lat)
         
+        # Actualizamos la free list
+        free_pos = self._read_header()
+        with open(self.filename, 'r+b') as file:
+            deleted = Record(0, "", 0.0, 0.0, free_pos)
+            file.seek(self.HEADER_SIZE + key * Record.SIZE)
+            file.write(deleted.pack())
+        self._write_header(key)
+
+        # Eliminamos en el arbol
         self.index.erase(key, coords)
-                
