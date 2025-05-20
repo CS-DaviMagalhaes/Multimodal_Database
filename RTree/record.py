@@ -1,5 +1,6 @@
 import struct
 import os
+from rtree_index import RTreeIndex
 
 class Record:
     FORMAT = "i20sdd"
@@ -42,6 +43,7 @@ class RecordFile:
         Utiliza un header para la free list.
         """
         self.filename = filename
+        self.index = RTreeIndex(index_name=f"{filename}_index", main_file=filename, record_size=Record.SIZE)
 
         if not os.path.exists(self.filename) or os.path.getsize(self.filename) < self.HEADER_SIZE:
             with open(self.filename, 'wb') as file:
@@ -67,7 +69,21 @@ class RecordFile:
         Inserta un nuevo record al archivo.
         No interesa preservar el orden aquí.
         """
-        pass
+        free_pos = self._read_header()
+        with open(self.filename, 'r+b') as file:
+            if free_pos == -1:
+                file.seek(0, os.SEEK_END)
+                file.write(record.pack())
+            else:
+                file.seek(self.HEADER_SIZE + (free_pos * Record.SIZE) + (Record.SIZE - 4) )
+                next_free = file.read(4)
+                next_free = struct.unpack('i', next_free)[0]
+                file.seek(self.HEADER_SIZE + free_pos * Record.SIZE)
+                file.write(record.pack())
+                self._write_header(next_free)
+        
+        # Confirmado el insert, pasamos al RTree
+        self.index.add(record)
 
     def read(self, pos):
         """
