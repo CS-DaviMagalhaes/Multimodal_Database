@@ -1,11 +1,13 @@
-from registro import Registro, REGISTER_FORMAT, RECORD_SIZE
+from cities import Registro, REGISTER_FORMAT, RECORD_SIZE
 from struct import pack, unpack, calcsize
-import sys
 import os
+import csv
 
-fb = 4          # Factor de balanceo, cantidad maxima de elementos en un bucket
-D = 3   # Profundidad global maxima
+fb = 2  # Factor de balanceo, cantidad maxima de elementos en un bucket
+D = 2   # Profundidad global maxima
 
+BUCKET_HEADER_FORMAT = 'iiii'
+BUCKET_HEADER_SIZE = calcsize(BUCKET_HEADER_FORMAT)
 BUCKET_FORMAT= f'iiii{fb*REGISTER_FORMAT}' # Bucket number, depth, next, size, fb espacios/registros
 BUCKET_SIZE = calcsize(BUCKET_FORMAT) 
 
@@ -16,7 +18,7 @@ INDEX_SIZE = calcsize(INDEX_FORMAT)
 """
 Estructura: Reservo fb espacios por buckets, almaceno la cantidad de elementos reales. 
 Bucket 0, d=1, next=-1, size=0
-|
+| 0
 |
 |
 Bucket 1, d=1, next=-1, size=2
@@ -24,19 +26,19 @@ Bucket 1, d=1, next=-1, size=2
 | 7
 |
 """
-
 class Bucket: 
-    def __init__(self, bucket_id, d, items=[Registro("", "", "", "", "") for _ in range(fb)]):
-        self.d = d                  # Profundidad local, para saber si puedo splitear o ya no
+    
+    def __init__(self, bucket_id, d, items=[Registro() for _ in range(fb)]): #Por defecto fb registros "en blanco" para reservar espacio
         self.bucket_id = bucket_id  # ID del bucket, en decimal
+        self.d = d                  # Profundidad local, para saber si puedo splitear o ya no
         self.next = -1              # Siguiente bucket enlazado
-        self.items = items          # Crear fb registros vacios (reservar espacio)
         self.size = 0               # Cantidad de elementos reales en el bucket 
+        self.items = items          # Crear fb registros vacios (reservar espacio)
 
-    def print_bucket(self):
+    def print_bucket(self): #Imprime el header y los registros no vacíos de un bucket
         print(f"Bucket {self.bucket_id} d={self.d} next={self.next} size={self.size}")
         for reg in self.items:
-            if reg.isbn != "":
+            if reg != Registro():
                 reg.print_reg()
 
     
@@ -46,10 +48,10 @@ los buckets se quedan en memoria secundaria.
 
 HashIndex.bin
 Binary  | #Bucket
-000         0
-100         3     
-001         1
-010         2
+00           0
+1            1
+010          2
+110          3
 """
 class HashIndex:
     def __init__(self, index_filename="hash_index.bin", buckets_filename="data.bin"):
@@ -59,25 +61,16 @@ class HashIndex:
 
         if not os.path.exists(index_filename): 
             with open(index_filename,  "wb") as index_file: # Creo archivo index si no existe
-                index_file.write(pack(INDEX_FORMAT, "0".encode(), 0)) # Índice 0 (binary=0, #bucket 0)
-                index_file.write(pack(INDEX_FORMAT, "1".encode(), 1)) # Índice 1 (binary=1, #bucket 1)
+                index_file.write(pack(INDEX_FORMAT, '0'.encode(), 0)) # Índice 0 (binary=0, #bucket 0)
+                index_file.write(pack(INDEX_FORMAT, '1'.encode(), 1)) # Índice 1 (binary=1, #bucket 1)
             
             self.index["0"] = 0 
             self.index["1"] = 1
                 
             #TODO: limpiar esta parte
-            with open(buckets_filename, "wb") as bucket_file: # Creo archivo bucket e inserto buckets iniciales
-                b0 = Bucket(0,1) # Bucket 0, d=1
-                all_fields = []
-                for reg in b0.items: # Reservar espacio para fb elementos (inserto registros vacios inicialmente)
-                    all_fields.extend(reg.to_fields())
-                bucket_file.write(pack(BUCKET_FORMAT, b0.bucket_id, b0.d, b0.next, b0.size, *all_fields))
-
-                b1 = Bucket(1,1) # Bucket 1, d=1
-                all_fields = []
-                for reg in b1.items:
-                    all_fields.extend(reg.to_fields())
-                bucket_file.write(pack(BUCKET_FORMAT, b1.bucket_id, b1.d, b1.next, b1.size, *all_fields))
+            with open(buckets_filename, "ab") as bucket_file: # Creo archivo bucket e inserto buckets iniciales
+                self.add_empty_bucket(bucket_file, 0, 1)
+                self.add_empty_bucket(bucket_file, 1, 1)
                 
         else: 
             #Abrir índice existente
@@ -89,81 +82,178 @@ class HashIndex:
                         break
                     
                     binary, number = unpack(INDEX_FORMAT, data)
-                    self.index[binary.decode().rstrip('\x00')] = number #this is writing \x00 aaaa TODO FIX  
+                    self.index[binary.decode().rstrip('\x00')] = number 
+
+    def get_bucket_header(self, bucket_file, bucket_number): # Retorna el header del bucket de numero bucket_number
+        bucket_file.seek(bucket_number * BUCKET_SIZE)
+        return unpack(BUCKET_HEADER_FORMAT, bucket_file.read(BUCKET_HEADER_SIZE)) # bucket_id, d, next_bucket, bucket_size
+
+    def add_empty_bucket(self, bucket_file, bucket_number, d):
+        bucket_file.seek(0,2) # End of file
+        b = Bucket(bucket_number, d)
+        all_fields = []
+        for reg in b.items: # Reservar espacio para fb elementos (inserto registros vacios inicialmente)
+            all_fields.extend(reg.to_fields())
+        bucket_file.write(pack(BUCKET_FORMAT, b.bucket_id, b.d, b.next, b.size, *all_fields))
+        
+    def get_last_bucket_number(self, bucket_file): # Retorna el número del último bucket (para poder crear el siguiente)
+        bucket_file.seek(-BUCKET_SIZE, 2)
+        header_data = bucket_file.read(calcsize("iiii"))
+        last_bucket_id, _, __, ___ = unpack("iiii", header_data)
+        return last_bucket_id
+
+    # TODO: Añadir caso lista enlazada
+    def get_bucket_items(self, bucket_file, bucket_number): 
+        _, __, ___, bucket_size = self.get_bucket_header(bucket_file, bucket_number) #ver # de items en el bucket
+        
+        start_pos = calcsize("iiii") + bucket_number * BUCKET_SIZE # Posición del primer registro del bucket
+        bucket_items = []
+        for i in range(bucket_size): 
+            bucket_file.seek(start_pos + i*RECORD_SIZE) # Registro i del bucket
+            data = bucket_file.read(RECORD_SIZE)
+
+            if not data: 
+                return None # No se encontró el registro
+            
+            id, name, state_id, state_code, state_name, country_id, country_code, country_name, latitude, longitude, wikiDataId = unpack(REGISTER_FORMAT, data)
+
+            reg = Registro(id,
+                            name.decode(encoding='utf-8', errors='replace').strip(),
+                            state_id,
+                            state_code.decode().strip(),
+                            state_name.decode().strip(),
+                            country_id,
+                            country_code.decode().strip(),
+                            country_name.decode(encoding='utf-8', errors='replace').strip(),
+                            latitude,
+                            longitude,
+                            wikiDataId.decode(encoding='utf-8', errors='replace').strip())
+            
+            bucket_items.append(reg)
+
+        return bucket_items
+
+    def reset_bucket(self, bucket_file, bucket_number): # Resetea los contenidos del bucket (para split) 
+        _, __, ___, bucket_size = self.get_bucket_header(bucket_file, bucket_number)
+
+        start_pos = BUCKET_HEADER_SIZE + bucket_number * BUCKET_SIZE # Posición del primer registro del bucket
+        for i in range(bucket_size):
+            bucket_file.seek(start_pos + i*RECORD_SIZE) # Registro i del bucket
+            empty_reg = Registro()
+            bucket_file.write(pack(REGISTER_FORMAT, *empty_reg.to_fields()))
+
+        # Reseteo size
+        bucket_file.seek(calcsize("iii") + bucket_number * BUCKET_SIZE) 
+        bucket_file.write(pack("i", 0)) 
+        
 
     def insert(self, reg):  
-        bucket_binary = bin(int(reg.isbn) % (2**D))[2:]
-        bucket_number  = self.index[bucket_binary]
-        #TODO: verificar si existe realmente caso donde no se encuentra el numero de bucket
+        to_insert = [reg]
+        while to_insert:
+            reg = to_insert.pop(0)
+            binary_id = bin(int(reg.id) % (2**D))[2:].zfill(D)
+            
+            bucket_number = 0 
+            bucket_binary = binary_id
+            for i in range(D):
+                suffix = binary_id[i:]
+                if suffix in self.index:
+                    bucket_number = self.index[suffix]
+                    bucket_binary = suffix
+                    break       
 
-        with open(self.buckets_filename, "r+b") as bucket_file:
+            with open(self.buckets_filename, "r+b") as bucket_file:
+                #Encontrar el header del bucket
 
-            #Encontrar el header del bucket
-            bucket_file.seek(bucket_number * BUCKET_SIZE)
-            data = bucket_file.read(calcsize("iiii"))
-            unpacked_data = unpack("iiii", data)
-                
-            bucket_id = unpacked_data[0]
-            d = unpacked_data[1]
-            next_bucket = unpacked_data[2]
-            bucket_size = unpacked_data[3]
+                #TODO: GET BUCKET HEADER FUNCTION HERE
+                bucket_file.seek(bucket_number * BUCKET_SIZE)
+                header_data = bucket_file.read(calcsize("iiii"))
+                bucket_id, d, next_bucket, bucket_size = unpack("iiii", header_data)
 
-            if bucket_size < fb: 
-                # Hay espacio, inserto
-                bucket_file.seek(calcsize("iii") + bucket_number * BUCKET_SIZE) # Posición "size" del header
-                bucket_file.write(pack("i", bucket_size+1)) # Actualizo size
+                if bucket_size < fb: # Hay espacio, inserto
+                    # Actualizo size en el header
+                    bucket_file.seek(calcsize("iii") + bucket_number * BUCKET_SIZE)
+                    bucket_file.write(pack("i", bucket_size + 1))
 
-                bucket_file.seek(calcsize("iiii") + (bucket_size*RECORD_SIZE) + (bucket_number*BUCKET_SIZE)) # Posición especifica del bucket
-                # Sobreescribo registro en blanco por registro real
-                bucket_file.write(pack(REGISTER_FORMAT, 
-                                  reg.isbn.encode(),
-                                  reg.title.encode(),
-                                  reg.year.encode(),
-                                  reg.author.encode(),
-                                  reg.publisher.encode()))              
-            else: 
-                #Verifico recursivamente next hasta encontrar bucket con espacio
-                while next_bucket == -1:
-                    #Encontrar el header del bucket
-                    print("next_bucket: ", next_bucket)
-                    bucket_file.seek(next_bucket * BUCKET_SIZE)
-                    data = bucket_file.read(calcsize("iiii"))
-                    unpacked_data = unpack("iiii", data)
+                    # Escribo registro
+                    pos = calcsize("iiii") + (bucket_size * RECORD_SIZE) + (bucket_number * BUCKET_SIZE)
+                    bucket_file.seek(pos)
+                    bucket_file.write(pack(REGISTER_FORMAT, *reg.to_fields()))
+                    continue  # próximo en to_insert
+
+                else:
+                    #Verifico next hasta encontrar bucket con espacio
+                    while next_bucket != -1:
+                        bucket_file.seek(next_bucket * BUCKET_SIZE)
+                        header_data = bucket_file.read(calcsize("iiii"))
+                        bucket_number, d, next_bucket, bucket_size = unpack("iiii", header_data)
+
+                    if bucket_size < fb:
+                        bucket_file.seek(calcsize("iii") + bucket_number * BUCKET_SIZE)
+                        bucket_file.write(pack("i", bucket_size + 1))
+                        pos = calcsize("iiii") + (bucket_size * RECORD_SIZE) + (bucket_number * BUCKET_SIZE)
+                        bucket_file.seek(pos)
+                        bucket_file.write(pack(REGISTER_FORMAT, *reg.to_fields()))
+                        continue
+
+                    if d < D:  # Split
+                        last_bucket_id = self.get_last_bucket_number(bucket_file)
+
+                        if bucket_binary in self.index:
+                            self.index.pop(bucket_binary)
+                        bins = ("0" + bucket_binary, "1" + bucket_binary)
+                        self.index[bins[0]] = bucket_id
+                        self.index[bins[1]] = last_bucket_id + 1
+
+                        # Actualizar archivo índice
+                        with open(self.index_filename, "wb") as index_file:
+                            index_file.seek(bucket_id * INDEX_SIZE)
+                            index_file.write(pack(INDEX_FORMAT, bins[0].encode(), bucket_id))
+                        with open(self.index_filename, "ab") as index_file:
+                            index_file.write(pack(INDEX_FORMAT, bins[1].encode(), last_bucket_id + 1))
+
+                        # Añadir nuevo bucket al final
+                        self.add_empty_bucket(bucket_file, last_bucket_id+1, d+1)
+
+                        # Redistribuir registros
+                        items = self.get_bucket_items(bucket_file, bucket_id)
+                        self.reset_bucket(bucket_file, bucket_id)
+                        bucket_file.seek(calcsize("i") + bucket_number * BUCKET_SIZE)
+                        bucket_file.write(pack("i", d + 1))
+
+                        # Vuelvo a insertar los registros afectados
+                        to_insert.extend(items + [reg])  # reinserto todos, incluido el original
+                    
+                    else: # d == D, encadeno buckets
+
+                        # Creo bucket nuevo al final del archivo
+                        last_bucket_id = self.get_last_bucket_number(bucket_file)
+                        self.add_empty_bucket(bucket_file, last_bucket_id+1, d) #d==D
+
+                        # Actualizar next del bucket "padre"
+                        bucket_file.seek(calcsize("ii") + bucket_id * BUCKET_SIZE) #posición next del header del bucket
+                        bucket_file.write(pack("i", last_bucket_id+1))
                         
-                    bucket_id = unpacked_data[0]
-                    d = unpacked_data[1]
-                    next_bucket = unpacked_data[2]
-                    bucket_size = unpacked_data[3]
-
-                # Ya encontré el bucket, verifico si está lleno
-                if bucket_size < fb: 
-                                    # Hay espacio, inserto
-                    bucket_file.seek(calcsize("iii") + bucket_number * BUCKET_SIZE) # Posición "size" del header
-                    bucket_file.write(pack("i", bucket_size+1)) # Actualizo size
-
-                    bucket_file.seek(calcsize("iiii") + (bucket_size*RECORD_SIZE) + (bucket_number*BUCKET_SIZE)) # Posición especifica del bucket
-                    # Sobreescribo registro en blanco por registro real
-                    bucket_file.write(pack(REGISTER_FORMAT, 
-                                    reg.isbn.encode(),
-                                    reg.title.encode(),
-                                    reg.year.encode(),
-                                    reg.author.encode(),
-                                    reg.publisher.encode()))    
-                else: 
-                    # Overflow, hago split
-                    #verifico cual es el ultimo bucket
-                    #bucket_file.seek(0, 2 - cuatro regs, leer header, ver numero bucket, el nuevo split sera ese num mas 1)
-                    pass
-                    #bucket_file.seek(calcsize("ii") + bucket_number * BUCKET_SIZE) # Posición "next" del header
-                    #bucket_file.write(pack("i", bucket_size+1)) # Actualizo size
-
-                        
+                        # Escribir nuevo registro
+                        bucket_file.seek(-BUCKET_SIZE+BUCKET_HEADER_SIZE, 2)
+                        bucket_file.write(pack(REGISTER_FORMAT, *reg.to_fields()))
+                        # Actualizar size del bucket con overflow
+                        bucket_file.seek(-BUCKET_SIZE+calcsize("iii"), 2)
+                        bucket_file.write(pack("i",1))
+ 
+            
     def search(self, key):
-        bucket_binary = bin(int(key) % (2**D))[2:]
-        bucket_number  = self.index[bucket_binary]
+        binary_id = bin(int(key) % (2**D))[2:].zfill(D)
+
+        bucket_number = 0
+        for i in range(D): # Buscar sufijo existente del bucket: 0100->100->00->0
+            suffix = binary_id[i:]
+            if suffix in self.index:
+                bucket_number = self.index[suffix]
+                break
 
         with open(self.buckets_filename, "rb") as bucket_file:
-            while True: 
+            while True:                 
                 start_pos = calcsize("iiii") + bucket_number * BUCKET_SIZE # Posición del primer registro del bucket
                 for i in range(fb): 
                     bucket_file.seek(start_pos + i*RECORD_SIZE) # Registro i del bucket
@@ -172,21 +262,24 @@ class HashIndex:
                     if not data: 
                         return None # No se encontró el registro
                     
-                    isbn, title, year, author, publisher = unpack(REGISTER_FORMAT, data)
- 
-                    reg = Registro(isbn.decode().rstrip('\x00'), #rstrip para quitar null bytes (strip solo quita tabs y espacios)
-                                    title.decode().strip(),
-                                    year.decode().strip(),
-                                    author.decode().strip(),
-                                    publisher.decode().strip())   
-                    
-                    print(key, reg.isbn)
-                    print(len(key), len(reg.isbn)) #when reg matches its reg.code is having len 256 for some reason
+                    id, name, state_id, state_code, state_name, country_id, country_code, country_name, latitude, longitude, wikiDataId = unpack(REGISTER_FORMAT, data)
 
-                    if reg.isbn == key: 
+                    reg = Registro( id,
+                                    name.decode(encoding='utf-8', errors='replace').strip(),
+                                    state_id,
+                                    state_code.decode().strip(),
+                                    state_name.decode().strip(),
+                                    country_id,
+                                    country_code.decode().strip(),
+                                    country_name.decode(encoding='utf-8', errors='replace').strip(),
+                                    latitude,
+                                    longitude,
+                                    wikiDataId.decode(encoding='utf-8', errors='replace').strip())
+
+                    if reg.id == key: 
                         return reg  # Encontré el registro
-                    elif reg.isbn == "":
-                        return None # No se encontró el registro
+                    elif reg == Registro():
+                        return None
                     
                 # Voy al siguiente bucket linkeado
                 bucket_file.seek(calcsize("ii") + bucket_number * BUCKET_SIZE) # Posición "next" del header del bucket
@@ -198,90 +291,126 @@ class HashIndex:
                     return None
                 else: 
                     bucket_number = next_bucket # Voy al siguiente bucket par iterar sobre ello
-
-                      
+                   
     def remove(self):
         pass
             
     def print_index(self): # Imprimir el contenido del índice
         print(" -- Hash Index -- ")
-        print(f"{"Binary":>8} | Bucket number")
-        for binary, bucket_number in self.index.items():
+        print(f"{'Binary':>8} | Bucket number")
+        # Ordenar por el número de bucket (valor)
+        for binary, bucket_number in sorted(self.index.items(), key=lambda x: x[1]):
             print(f'{binary:>8} | {bucket_number:>6}')
         print("----------------------------\n")
 
     def print_data(self): # Imprime todos los buckets, uno por uno
         print("-- Data.bin -- ")
         with open(self.buckets_filename, "rb") as bucket_file: 
+            pos = 0
             while True:
-                data = bucket_file.read(BUCKET_SIZE)
-
-                if not data: 
+                bucket_file.seek(pos * BUCKET_SIZE)
+                bucket_header = bucket_file.read(calcsize("iiii")) # Leo header de ese bucket
+                if not bucket_header: 
                     break   # ya se leyó todo
 
-                unpacked_data = unpack(BUCKET_FORMAT, data) #Tupla de valores
+                bucket_id, d, next_bucket, bucket_size = unpack("iiii", bucket_header) 
                 
-                bucket_id = unpacked_data[0]
-                d = unpacked_data[1]
-                next_bucket = unpacked_data[2]
-                bucket_size = unpacked_data[3]
-                raw_fields = unpacked_data[4:]  # fb * (#campos registro)
 
-                items = []
-                for i in range(fb):
-                    base = i * 5
-                    reg_fields = raw_fields[base:base + 5]
-                    reg = Registro(
-                        reg_fields[0].decode(), # isbn
-                        reg_fields[1].decode(), # title
-                        reg_fields[2].decode(), # author
-                        reg_fields[3].decode(), # year
-                        reg_fields[4].decode(), # publisher
-                    )
-                    items.append(reg)
+                bucket_items = []
+                start_pos = calcsize("iiii") + pos * BUCKET_SIZE # Bucket actual + header -> primer registro
+                for i in range(fb): 
+                    bucket_file.seek(start_pos + i*RECORD_SIZE) # Registro i del bucket
+                    data = bucket_file.read(RECORD_SIZE)
+
+                    if len(data) < RECORD_SIZE:
+                        return
+                
+                    id, name, state_id, state_code, state_name, country_id, country_code, country_name, latitude, longitude, wikiDataId = unpack(REGISTER_FORMAT, data)
+
+                    reg = Registro(id,
+                                    name.decode(encoding='utf-8', errors='replace').strip(),
+                                    state_id,
+                                    state_code.decode().strip(),
+                                    state_name.decode().strip(),
+                                    country_id,
+                                    country_code.decode().strip(),
+                                    country_name.decode(encoding='utf-8', errors='replace').strip(),
+                                    latitude,
+                                    longitude,
+                                    wikiDataId.decode(encoding='utf-8', errors='replace').strip())
+                    bucket_items.append(reg)
 
                 bucket = Bucket(bucket_id, d)
                 bucket.next = next_bucket
-                bucket.items = items
+                bucket.items = bucket_items
                 bucket.size = bucket_size
                 bucket.print_bucket()
-        print()
 
-#Testing#
+                pos+=1
+        print()      
+    
+    def loadcsv(self, csv_filename):
+        with open(self.index_filename, "wb") as index_file:
+            with open(csv_filename, newline='',encoding='ISO-8859-1') as csvfile:
+                spamreader = csv.reader(csvfile, delimiter=',')
+                next(spamreader, None)
+                for row in spamreader: 
+                    #TODO: Generalizar esto que ascooooo aaaa
+                    registro = Registro(int(row[0]),
+                                        row[1],
+                                        int(row[2]),
+                                        row[3],
+                                        row[4],
+                                        int(row[5]),
+                                        row[6],
+                                        row[7],
+                                        float(row[8]),
+                                        float(row[9]),
+                                        row[10])
+                    
+                    self.insert(registro)
+
+####### TESTING #######
+
+# test create, close, reopen existing hash #
 print("Creating...")
 hash_index = HashIndex("hash_index.bin")
-#hash_index.print_index()
-#hash_index.print_data()
+hash_index.print_index()
+hash_index.print_data()
+print("Creation complete!\n")
 
 print("Reopening...")
 hash_index_reopen = HashIndex("hash_index.bin")
-#hash_index_reopen.print_index()
-#hash_index_reopen.print_data()
-
-
-# Test insert # 
-reg1 = Registro("195153448","Classical Mythology","Mark P. O. Morford","2002","Oxford University Press")
-reg2 = Registro("2005018","Clara Callan","Richard Bruce Wright","2001","HarperFlamingo Canada")
-hash_index_reopen.insert(reg1)
-hash_index_reopen.insert(reg2)
 hash_index_reopen.print_index()
 hash_index_reopen.print_data()
+print("Reopen complete!\n")
 
-key = "2005018"
-search_reg = hash_index_reopen.search(key)
-if search_reg == None: 
-    print(f"No se encontró el registro con el key {key}")
-else: 
-    print("registro encontrado")
-    search_reg.print_reg()
 
-os.remove("data.bin")
+# TEST insert, split and overflow"
+regs = [Registro(2, "a", 1234, "ddd", "sfsdf", 1, "AF", "Afghanistan", 36.68333, 71.53333,"Q4805192"),
+        Registro(1, "b", 3901, "BDS", "Badakhshan", 1, "AF", "Afghanistan", 37.11664, 70.58002, "Q156558"),
+        Registro(8, "c", 3901, "BDS", "Badakhshan", 1, "AF", "Afghanistan", 36.68333, 71.53333,"Q4805192"),
+        Registro(16, "d", 3901, "BDS", "Badakhshan", 1, "AF", "Afghanistan", 37.11664, 70.58002, "Q156558"),
+        Registro(32, "e", 3901, "BDS", "Badakhshan", 1, "AF", "Afghanistan", 37.11664, 70.58002, "Q156558"),
+        Registro(3, "f", 1112, "BDS", "sloals", 1, "AF", "Afghanistan", 36.68333, 71.53333,"Q4805192"),
+        Registro(5, "g", 1111, "BDS", "gaa", 1, "AF", "Afghanistan", 37.11664, 70.58002, "Q156558"),
+        Registro(9, "h", 3901, "BDS", "Badakhshan", 1, "AF", "Afghanistan", 37.11664, 70.58002, "Q156558"),
+        Registro(64, "i", 3901, "BDS", "Badakhshan", 1, "AF", "Afghanistan", 36.68333, 71.53333,"Q4805192"),
+        Registro(128, "j", 2222, "xdd", "asdfasdf", 1, "AF", "Afghanistan", 37.11664, 70.58002, "Q156558")]
+
+for reg in regs: 
+    hash_index_reopen.insert(reg)
+hash_index_reopen.print_data()
+hash_index_reopen.print_index()
+
+# test search, on regular and overflow buckets
+search_keys = [3, 5, 128, 2]
+for key in search_keys: 
+    search_reg = hash_index_reopen.search(key)
+    if search_reg == None: 
+        print(f"No se encontró el registro con el key {key}")
+    else: 
+        search_reg.print_reg()
+
+os.remove("data.bin")       #QUITAR esto. Es solo para poder testear rapido       
 os.remove("hash_index.bin")
-
-            
-
-            
-        
-        
-        
-    
