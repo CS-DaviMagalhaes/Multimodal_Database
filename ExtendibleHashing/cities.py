@@ -81,22 +81,3 @@ class Registro: # Cities
 
     def print_reg(self):
         print(self.get_reg_string())
-
-
-# LECTURA #
-"""
-def from_binary(self, data):
-    tokens, sizes = self.get_field_sizes(REGISTER_FORMAT)
-    unpacked = struct.unpack(REGISTER_FORMAT, data)
-    values = []
-
-    for val, token in zip(unpacked, tokens):
-        if token.endswith('s'):
-            values.append(val.decode().strip())
-        else:
-            values.append(val)
-    
-    return Registro(*values)
-"""
-
-
