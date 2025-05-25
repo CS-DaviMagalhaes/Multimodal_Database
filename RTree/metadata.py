@@ -27,7 +27,7 @@ class RTreeMetadata:
             return struct.unpack(self.HEADER_FORMAT, file.read(self.HEADER_SIZE))[0]
 
     def write_header(self, head):
-        with open(self.filename, 'rb') as file:
+        with open(self.filename, 'r+b') as file:
             file.seek(0)
             file.write(struct.pack(self.HEADER_FORMAT, head))
     
@@ -71,7 +71,7 @@ class RTreeMetadata:
         if not entry:
             return False
         offset = entry['offset']
-        free_head = self.get()
+        free_head = self.read_header()
         with open(self.filename, 'r+b') as file:
             file.seek(offset)
             file.write(struct.pack(self.FORMAT, -1, -1, 0.0, 0.0, free_head))
