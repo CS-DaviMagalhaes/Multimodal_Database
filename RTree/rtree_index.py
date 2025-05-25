@@ -1,5 +1,5 @@
 from rtree import index
-from asdf import Registro
+from record import Registro
 from metadata import RTreeMetadata
 
 class RTreeIndex:
