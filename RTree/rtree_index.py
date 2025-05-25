@@ -9,9 +9,7 @@ class RTreeIndex:
     La libreria no maneja puntos directamente, sino como boxes de area 0.
     Para manejar puntos (lon, lat), crear box (lon, lat, lon, lat)
     """
-    def __init__(self, index_name="rtree_index", main_file="main_records.dat", metadata_file="rtree_metadata.dat"):        
-        self.main_file = main_file
-    
+    def __init__(self, index_name="./rtree_index", metadata_file="./rtree_metadata.dat"):            
         p = index.Property()
         p.dimension = 2
         p.overwrite = False
@@ -89,7 +87,7 @@ class RTreeIndex:
         matches = [nid for nid in neighbours if nid != key]
 
         results = []
-        for key in matches:
+        for key in matches[:k]:
             entry = self.meta_file.get(key)
             if entry:
                 results.append(entry['pos'])
@@ -104,7 +102,7 @@ class RTreeIndex:
         if not entry:
             raise KeyError(f"Key {key} no presente en metadata")
         
-        lon, lat = entry['lon'], entry['lan']
+        lon, lat = entry['lon'], entry['lat']
         point = (lon, lat, lon, lat)
         self.rtree_idx.delete(key, point)
         self.meta_file.erase(key)
