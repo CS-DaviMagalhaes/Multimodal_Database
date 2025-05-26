@@ -87,37 +87,28 @@ class FixedRecord:
         matches = self.index.box_search(lower_coords, upper_coords)
 
         if not matches:
-            return False
+            return None
 
-        for match in matches:
-            reg = self.read(match)
-            reg.print_reg()
-        
-        return True
+        registros = [self.read(match) for match in matches]            
+        return registros
 
     def radius_search(self, coords, radius):
         matches = self.index.radius_search(coords, radius)
 
         if not matches:
-            return False
+            return None
 
-        for match in matches:
-            reg = self.read(match)
-            reg.print_reg()
-
-        return True
+        registros = [self.read(match) for match in matches]
+        return registros
 
     def knn_search(self, key, k):
         matches = self.index.knn_search(key, k)
 
         if not matches:
-            return False
+            return None
 
-        for match in matches:
-            reg = self.read(match)
-            reg.print_reg()
-
-        return True
+        registros = [self.read(match) for match in matches]
+        return registros
 
     def remove(self, pos):
         self.index.erase(pos)
