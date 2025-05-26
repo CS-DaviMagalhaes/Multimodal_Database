@@ -70,16 +70,13 @@ class RTreeIndex:
         neighbours = list(self.rtree_idx.nearest(point, num_results=k))
         return neighbours[:k]
 
-    def erase(self, key):
+    def erase(self, pos):
         """
         Eliminacion de un record en específico.
         Pasamos una posicion en especifico
         """
-        entry = self.meta_file._get_key(key)
-        if not entry:
-            raise KeyError(f"Registro {key} no presente en metadata")
-        
+        entry = self.meta_file.get(pos)
         lon, lat = entry['lon'], entry['lat']
         point = (lon, lat, lon, lat)
-        self.rtree_idx.delete(entry['pos'], point)
+        self.rtree_idx.delete(pos, point)
         self.meta_file.erase(entry)
