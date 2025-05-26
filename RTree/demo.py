@@ -5,7 +5,10 @@ import os
 import time
 import random
 
-
+# Start cleanup
+for ext in ["dat", "free.dat", "rtree.dat", "rtree.idx", "rtree.meta.dat"]:
+    try: os.remove(f"demo_file.{ext}")
+    except: pass
 
 csv_path = os.path.join(os.path.dirname(__file__), '..', 'data')
 csv_path = os.path.normpath(csv_path)
@@ -14,11 +17,6 @@ files = [os.path.join(csv_path, i) for i in os.listdir(csv_path)]
 # 0: cities, 1:100, 2:100k, 3:10k, 4:1k, 5:1M, 6:250k, 7:500k 
 
 def test(dataset_path):
-    # Start cleanup
-    for ext in ["dat", "free.dat", "rtree.dat", "rtree.idx", "rtree.meta.dat"]:
-        try: os.remove(f"demo_file.{ext}")
-        except: pass
-
     times = [] # [0] : add, [1] : search, [2] : range search, [3] : erase
 
     print(f"\n📂 Testing dataset: {os.path.basename(dataset_path)}")
@@ -77,29 +75,29 @@ def test(dataset_path):
     print(f"Found {len(neighbors)} in KNN search")
     print(f"⏱ KNN Search time: {knn_time:.6f}s")
 
-    keys = list(reg.id for reg in all)
-    sample_keys = random.sample(keys, 100)
+    positions = list(range(len(all)))
+    sample_pos = random.sample(positions, 100)
 
     # REMOVAL
     print("\n❌ Removing 100 random records...")
     start_time = time.time()
-    for k in sample_keys:
-        fixed.remove(k)
+    for p in sample_pos:
+        fixed.remove(p)
 
     erase_time = time.time() - start_time
     times.append(erase_time)
 
-    erase_count = len(fixed.load()) - len(all)
+    erase_count = len(all) - len(fixed.load())
 
     print(f"Deleted {erase_count} records.")
     print(f"⏱ Erase time: {erase_time:.4f}s")
 
     return times
 
-times_test = files[4]
+times_test = test(files[4])
 print(f"Insertion: {times_test[0]} | Search: {times_test[1]} | Range search: {times_test[2]} | Deletion: {times_test[3]}")
 
-# Start cleanup
+# Exit cleanup
 for ext in ["dat", "free.dat", "rtree.dat", "rtree.idx", "rtree.meta.dat"]:
     try: os.remove(f"demo_file.{ext}")
     except: pass
