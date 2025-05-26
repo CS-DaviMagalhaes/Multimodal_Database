@@ -84,3 +84,53 @@ Hicimos la búsqueda de 100 keys aleatorios del dataset y sacamos el promedio:
 Hicimos el borrado de 100 keys aleatorios del dataset y sacamos el promedio: 
 
 ![Remove](./imgs/remove_hash.png)
+
+
+
+## Estrategias Utilizadas en la Implementación
+
+La implementación del sistema de acceso secuencial indexado (ISAM) se diseñó con el objetivo de simular un sistema de archivos jerárquico eficiente, con soporte para inserción, búsqueda y eliminación. A continuación se detallan las estrategias clave empleadas:
+
+### 1. Estructura Multinivel
+Se utilizó una estructura jerárquica de dos niveles de indexación:
+- **Root Index (`root_index.bin`)**: Apunta a páginas del índice intermedio.
+- **Index Pages (`index_pages.bin`)**: Contienen referencias a páginas de datos.
+- **Data Pages (`data_pages.bin`)**: Almacenan los registros ordenados de forma secuencial.
+
+Esto permite búsquedas logarítmicas y navegación eficiente por los niveles del índice.
+
+### 2. Segmentación por Archivos
+Cada nivel de la estructura se almacena en un archivo binario independiente:
+- `root_index.bin`
+- `index_pages.bin`
+- `data_pages.bin`
+- `overflow.bin` (para las inserciones que no se pudieron hacer en el área principal)
+
+Esta segmentación facilita el manejo modular del almacenamiento y el acceso por niveles.
+
+### 3. Bloques con Factor Fijo
+Se utilizó un **factor de bloqueo fijo**:
+- `BLOCK_FACTOR_DATA = 5`: Número máximo de registros por página de datos.
+- `BLOCK_FACTOR_INDEX = 4`: Número máximo de entradas por página de índice.
+
+Esto asegura una estructura uniforme de páginas, facilita el cálculo de offsets y permite navegación por saltos fijos.
+
+### 4. Registros Fijos y Serialización con `struct`
+Todos los registros (`Registro`) e índices (`IndexEntry`) se serializan usando el módulo `struct`, con un formato fijo (`FORMAT`) que asegura un tamaño constante en disco. Esto permite:
+- Cálculo directo de posiciones (offsets) sin recorrer todo el archivo.
+- Acceso eficiente a cualquier página o registro.
+
+### 5. Área de Desborde (`overflow.bin`)
+Las inserciones no se hacen en las páginas de datos (por la naturaleza estática del ISAM), sino que se redirigen a un archivo de desborde. Esto mantiene el área principal inalterada y permite realizar operaciones de inserción sin reorganizar el índice.
+
+### 6. Búsqueda Binaria Aproximada por Niveles
+Para cada búsqueda:
+1. Se localiza la página adecuada en `root_index.bin`.
+2. Luego se baja a la página de índice correspondiente.
+3. Finalmente se accede a la página de datos que contiene o debería contener el registro.
+4. Si no se encuentra, se busca en el `overflow.bin`.
+
+Esta estrategia imita el comportamiento real del ISAM y permite realizar búsquedas eficientes con costo O(log n) en el mejor caso.
+
+### 7. Lectura y Escritura Página por Página
+Para mejorar la eficiencia y evitar acceso por registro, se leen y escriben bloques completos (páginas) en lugar de registros individuales.
