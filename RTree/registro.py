@@ -40,7 +40,7 @@ class Registro: # Cities
 
     def pack(self):
         return struct.pack(
-            Registro.FORMAT,
+            self.FORMAT,
             *self.to_fields()
         )
 
