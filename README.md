@@ -87,7 +87,7 @@ Hicimos el borrado de 100 keys aleatorios del dataset y sacamos el promedio:
 
 
 
-## Estrategias Utilizadas en la Implementación
+## ISAM
 
 La implementación del sistema de acceso secuencial indexado (ISAM) se diseñó con el objetivo de simular un sistema de archivos jerárquico eficiente, con soporte para inserción, búsqueda y eliminación. A continuación se detallan las estrategias clave empleadas:
 
