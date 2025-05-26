@@ -1,10 +1,24 @@
 # Multimodal_Database
 Sistema de Base de Datos Multimodal con Indexación Avanzada
 
+# Dataset
+Utilizamos el dataset `cities` que tiene `148061` registros con los siguientes atributos: 
+- `id`: id de la ciudad
+- `name`: nombre de la ciudad
+- `state_id`: id del estado
+- `state_code`: código del estado
+- `state_name`: nombre del estado
+- `country_id`: id del país
+- `country_code`: código del país
+- `country_name`: nombre del país
+- `latitude`: coordenada latitud
+- `longitude`: coordenada longitud
+- `wikiDataId`: id de la ciudad registrado en wikidata.org
+
 # Extendible Hashing
 Extendible Hashing que mantiene el índice en RAM y los buckets en disco, permitiendo inserciones, búsquedas, splits y overflows de forma eficiente.
 
-## Estratégias utilizadas en la implementación
+## Estrategias utilizadas en la implementación
 
 ### Estructura general
 Mientras estamos trabajando sobre el archivo del índice lo almacenamos en RAM para poder hacer operaciones de forma más eficiente. Cada cambio hecho al

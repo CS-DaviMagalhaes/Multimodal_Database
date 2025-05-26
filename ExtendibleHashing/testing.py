@@ -1,8 +1,5 @@
 from extendible_hashing import HashIndex
-from cities import Registro, REGISTER_FORMAT, RECORD_SIZE
-from struct import pack, unpack, calcsize
-import os
-import csv
+from cities import Registro
 
 ## Usar fb=2, D=2 para poder ver bien los splits, overflow y reconstrucción
 
@@ -63,7 +60,7 @@ new_regs = [Registro(128, "j", 2222, "xdd", "asdfasdf", 1, "AF", "Afghanistan", 
 for reg in new_regs:
     hash_index_reopen.insert(reg)
 hash_index_reopen.print_data()
+hash_index_reopen.print_index()
 
-
-os.remove("data.bin")       #QUITAR esto. Es solo para poder testear rapido       
-os.remove("hash_index.bin")
+#os.remove("data.bin")          
+#os.remove("hash_index.bin")
