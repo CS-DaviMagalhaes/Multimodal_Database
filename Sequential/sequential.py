@@ -2,74 +2,12 @@ import bisect
 import math
 import struct
 import os
-
-REGISTER_FORMAT = 'i 60s i 5s 55s i 3s 35s f f 10s' 
-RECORD_SIZE = struct.calcsize(REGISTER_FORMAT)
-HEADER_FORMAT = 'i i' # first pos, count
-HEADER_SIZE = struct.calcsize(HEADER_FORMAT)
-
-class Registro: # Cities
-    def __init__(self, id=0, name="", state_id=0, state_code="", state_name="",
-                 country_id=0, country_code="", country_name="", latitude=0.0,
-                 longitude=0.0, wikiDataId=""): #para constructor "vacio"
-        
-        self.id = id                                        
-        self.name = name                   
-        self.state_id = state_id            
-        self.state_code = state_code        
-        self.state_name = state_name        
-        self.country_id = country_id        
-        self.country_code = country_code        
-        self.country_name = country_name        
-        self.latitude = latitude        
-        self.longitude = longitude      
-        self.wikiDataId = wikiDataId   
-
-    def get_reg_string(self): # vars(self).values() retorna el valor de todas las variables de la clase
-        return " | ".join(str(v) for v in vars(self).values()) # name | state_id | state_code | ...
-        
-    def to_fields(self): #Encodifica todos los campos, asi puedo usar * 
-        return (
-        self.id,
-        self.name.encode(),
-        self.state_id,
-        self.state_code.encode(),
-        self.state_name.encode(),
-        self.country_id,
-        self.country_code.encode(),
-        self.country_name.encode(),
-        self.latitude,
-        self.longitude,
-        self.wikiDataId.encode(),
-    )
-
-    def pack(self):
-        return struct.pack(
-            REGISTER_FORMAT,
-            *self.to_fields()
-        )
-
-    @classmethod  #truquito que vi para poder leer todo de una vez a una clase -> reg = Registro.from_bytes(data)
-    def from_bytes(cls, byte_data):
-        unpacked = struct.unpack(REGISTER_FORMAT, byte_data)
-        return cls(
-            unpacked[0],  # id
-            unpacked[1].decode('utf-8', errors='replace').strip(),  # name
-            unpacked[2],  # state_id
-            unpacked[3].decode().strip(),  # state_code
-            unpacked[4].decode().strip(),  # state_name
-            unpacked[5],  # country_id
-            unpacked[6].decode().strip(),  # country_code
-            unpacked[7].decode('utf-8', errors='replace').strip(),  # country_name
-            unpacked[8],  # latitude
-            unpacked[9],  # longitude
-            unpacked[10].decode('utf-8', errors='replace').strip(),  # wikiDataId
-        )
-
-    def print_reg(self):
-        print(self.get_reg_string())
+from registro import Registro
 
 class SequentialFile:
+    HEADER_FORMAT = 'i i' # first pos, count
+    HEADER_SIZE = struct.calcsize(HEADER_FORMAT)
+
     def __init__(self, filename, key_attr):
         self.filename = filename + ".dat"
         self.aux_filename = filename + ".aux.dat"
@@ -77,21 +15,21 @@ class SequentialFile:
 
         if not os.path.exists(self.filename):
             with open(self.filename, 'wb') as file:
-                file.write(struct.pack(HEADER_FORMAT, -1, 0))
+                file.write(struct.pack(self.HEADER_FORMAT, -1, 0))
     
     def _read_header(self):
         with open(self.filename, 'rb') as file:
-            data = file.read(HEADER_SIZE)
-            return struct.unpack(HEADER_FORMAT, data)
+            data = file.read(self.HEADER_SIZE)
+            return struct.unpack(self.HEADER_FORMAT, data)
     
     def _write_header(self, start_pos, count):
         with open(self.filename, 'r+b') as file:
             file.seek(0)
-            file.write(struct.pack(HEADER_FORMAT, start_pos, count))
+            file.write(struct.pack(self.HEADER_FORMAT, start_pos, count))
 
     def _count_aux_registros(self):
         size = os.path.getsize(self.aux_filename)
-        return size // RECORD_SIZE
+        return size // Registro.SIZE
 
     def _load_all(self):
         head, _ = self._read_header()
@@ -100,9 +38,9 @@ class SequentialFile:
         with open(self.filename, 'rb') as file:
             current = head
             while current != -1:
-                file.seek(HEADER_SIZE + current * (RECORD_SIZE + 4))
-                data = file.read(RECORD_SIZE + 4)
-                if not data or len(data) < (RECORD_SIZE + 4):
+                file.seek(self.aux_filenameHEADER_SIZE + current * (Registro.SIZE + 4))
+                data = file.read(Registro.SIZE + 4)
+                if not data or len(data) < (Registro.SIZE + 4):
                     break
                 reg = Registro.from_bytes(data[:-4])
                 next_ptr = struct.unpack('i', data[-4:])[0]
@@ -111,8 +49,8 @@ class SequentialFile:
         
         with open(self.aux_filename, 'rb') as file:
             while True:
-                data = file.read(RECORD_SIZE)
-                if not data or len(data) < RECORD_SIZE:
+                data = file.read(Registro.SIZE)
+                if not data or len(data) < Registro.SIZE:
                     break
                 registros.append(Registro.from_bytes(data))
 
@@ -123,7 +61,7 @@ class SequentialFile:
         all_registros.sort(key = lambda r : getattr(r, self.key_attr))
 
         with open(self.filename, 'wb') as file:
-            file.write(struct.pack(HEADER_FORMAT, 0, len(all_registros)))
+            file.write(struct.pack(self.HEADER_FORMAT, 0, len(all_registros)))
             for i, reg in enumerate(all_registros):
                 file.write(reg.pack())
                 next_ptr = i + 1 if i + 1 < len(all_registros) else -1
@@ -170,9 +108,9 @@ class SequentialFile:
 
         with open(self.filename, 'r+b') as file:
             while current != -1:
-                file.seek(HEADER_SIZE + current * (RECORD_SIZE + 4))
-                data = file.read(RECORD_SIZE + 4)
-                if not data or len(data) < (RECORD_SIZE + 4):
+                file.seek(self.HEADER_SIZE + current * (Registro.SIZE + 4))
+                data = file.read(Registro.SIZE + 4)
+                if not data or len(data) < (Registro.SIZE + 4):
                     break
             
                 reg = Registro.from_bytes(data[:-4])
@@ -182,7 +120,7 @@ class SequentialFile:
                     if prev is None:
                         self._write_header(next_ptr, count - 1)
                     else:
-                        file.seek(HEADER_SIZE + prev * (RECORD_SIZE + 4) + (RECORD_SIZE))
+                        file.seek(self.HEADER_SIZE + prev * (Registro.SIZE + 4) + (Registro.SIZE))
                         file.write(struct.pack('i', next_ptr))
                         self._write_header(head, count - 1)
                     return True
