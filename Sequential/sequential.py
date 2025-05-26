@@ -38,7 +38,7 @@ class SequentialFile:
         with open(self.filename, 'rb') as file:
             current = head
             while current != -1:
-                file.seek(self.aux_filenameHEADER_SIZE + current * (Registro.SIZE + 4))
+                file.seek(self.HEADER_SIZE + current * (Registro.SIZE + 4))
                 data = file.read(Registro.SIZE + 4)
                 if not data or len(data) < (Registro.SIZE + 4):
                     break
