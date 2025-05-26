@@ -1,5 +1,6 @@
 import struct
 import os
+from rtree_index import RTreeIndex
 
 REGISTER_FORMAT = 'i 60s i 5s 55s i 3s 35s f f 10s' 
 RECORD_SIZE = struct.calcsize(REGISTER_FORMAT)
@@ -98,8 +99,9 @@ class FreeList:
 
 class FixedRecord:
     def __init__(self, filename):
-        self.filename = filename
-        self.metadata = FreeList(filename + ".free")
+        self.filename = filename + ".dat"
+        self.metadata = FreeList(filename + ".free.dat")
+        self.index = RTreeIndex(index_name=filename + ".rtree")
 
         if not os.path.exists(self.filename):
             with open(self.filename, 'wb') as file:
@@ -126,7 +128,11 @@ class FixedRecord:
                 file.seek(pos * RECORD_SIZE)
             else:
                 file.seek(0, os.SEEK_END)
+                pos = file.tell() // RECORD_SIZE
             file.write(registro.pack())
+        
+        self.index.add(registro, pos)    
+        return pos
 
     def read(self, pos):
         with open(self.filename, 'rb') as file:
@@ -136,9 +142,46 @@ class FixedRecord:
                 return None
             return Registro.from_bytes(data)
 
-    def print_all(self):
-        for reg in self.load():
+    def print_registros(self, regs):
+        for reg in regs:
             reg.print_reg()
 
+    def box_search(self, lower_coords, upper_coords):
+        matches = self.index.box_search(lower_coords, upper_coords)
+
+        if not matches:
+            return False
+
+        for match in matches:
+            reg = self.read(match)
+            reg.print_reg()
+        
+        return True
+
+    def radius_search(self, coords, radius):
+        matches = self.index.radius_search(coords, radius)
+
+        if not matches:
+            return False
+
+        for match in matches:
+            reg = self.read(match)
+            reg.print_reg()
+
+        return True
+
+    def knn_search(self, key, k):
+        matches = self.index.knn_search(key, k)
+
+        if not matches:
+            return False
+
+        for match in matches:
+            reg = self.read(match)
+            reg.print_reg()
+
+        return True
+
     def remove(self, pos):
+        self.index.erase(pos)
         self.metadata.add(pos)
