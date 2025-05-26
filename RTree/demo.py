@@ -55,24 +55,27 @@ def test(dataset_path):
     # Run spatial queries
     print("\n🔍 Box search:")
     start_time = time.time()
-    fixed.box_search((0.0, 0.0), (1.0, 1.0))
+    box_matches = fixed.box_search((0.0, 0.0), (1.0, 1.0))
     box_time = time.time() - start_time
     times.append(box_time)
+    print(f"Found {len(box_matches)} in box search")
     print(f"⏱ Box Search time: {box_time:.6f}s")
 
     print("\n📍 Radius search:")
     start_time = time.time()
-    fixed.radius_search((0.0, 0.0), 1.5)
+    radius_matches = fixed.radius_search((0.0, 0.0), 1.5)
     radius_time = time.time() - start_time
     times.append(radius_time)
+    print(f"Found {len(radius_matches)} in radius search")
     print(f"⏱ Radius Search time: {radius_time:.6f}s")
 
     print("\n👥 KNN search:")
     start_time = time.time()
-    fixed.knn_search((0.25, 0.25), 3)
+    neighbors = fixed.knn_search((0.25, 0.25), 3)
     knn_time = time.time() - start_time
     times.append(knn_time)
-    print(f"⏱ Radius Search time: {knn_time:.6f}s")
+    print(f"Found {len(neighbors)} in KNN search")
+    print(f"⏱ KNN Search time: {knn_time:.6f}s")
 
     keys = list(reg.id for reg in all)
     sample_keys = random.sample(keys, 100)
