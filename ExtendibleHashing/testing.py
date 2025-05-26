@@ -4,6 +4,8 @@ from struct import pack, unpack, calcsize
 import os
 import csv
 
+## Usar fb=2, D=2 para poder ver bien los splits, overflow y reconstrucción
+
 # test create, close, reopen existing hash #
 print("Creating...")
 hash_index = HashIndex("hash_index.bin")
@@ -13,10 +15,9 @@ print("Creation complete!\n")
 
 print("Reopening...")
 hash_index_reopen = HashIndex("hash_index.bin")
-#hash_index_reopen.loadcsv("../data/cities.csv")
+#hash_index_reopen.loadcsv("../data/cities_100.csv")
 hash_index_reopen.print_index()
 hash_index_reopen.print_data()
-
 print("Reopen complete!\n")
 
 # TEST insert, split and overflow"
@@ -45,8 +46,8 @@ for key in search_keys:
     else: 
        reg.print_reg()
 
-## Test remove ##
-remove_keys = [2,128, 32, 8, 9]
+## Test remove and reconstruct ##
+remove_keys = [2, 128, 32, 8, 9]
 for key in remove_keys:
     hash_index_reopen.remove(key)
 
@@ -55,13 +56,13 @@ hash_index_reopen.print_index()
 
 
 ## Test insert after remove ## 
-#new_regs = [Registro(128, "j", 2222, "xdd", "asdfasdf", 1, "AF", "Afghanistan", 37.11664, 70.58002, "Q156558"),
-#            Registro(7, "j", 2222, "xdd", "asdfasdf", 1, "AF", "Afghanistan", 37.11664, 70.58002, "Q156558"),
-#            Registro(256, "j", 2222, "xdd", "asdfasdf", 1, "AF", "Afghanistan", 37.11664, 70.58002, "Q156558"),
-#             Registro(512, "j", 2222, "xdd", "asdfasdf", 1, "AF", "Afghanistan", 37.11664, 70.58002, "Q156558")]
-#for reg in new_regs:
-#    hash_index_reopen.insert(reg)
-#hash_index_reopen.print_data()
+new_regs = [Registro(128, "j", 2222, "xdd", "asdfasdf", 1, "AF", "Afghanistan", 37.11664, 70.58002, "Q156558"),
+            Registro(7, "j", 2222, "xdd", "asdfasdf", 1, "AF", "Afghanistan", 37.11664, 70.58002, "Q156558"),
+            Registro(256, "j", 2222, "xdd", "asdfasdf", 1, "AF", "Afghanistan", 37.11664, 70.58002, "Q156558"),
+             Registro(512, "j", 2222, "xdd", "asdfasdf", 1, "AF", "Afghanistan", 37.11664, 70.58002, "Q156558")]
+for reg in new_regs:
+    hash_index_reopen.insert(reg)
+hash_index_reopen.print_data()
 
 
 os.remove("data.bin")       #QUITAR esto. Es solo para poder testear rapido       
