@@ -4,6 +4,7 @@ import csv
 import os
 import time
 import random
+from itertools import islice
 
 # Cleaning
 for ext in ["dat", "aux.dat"]:
@@ -16,7 +17,7 @@ csv_path = os.path.normpath(csv_path)
 files = [os.path.join(csv_path, i) for i in os.listdir(csv_path)]
 # 0: cities, 1:100, 2:100k, 3:10k, 4:1k, 5:1M, 6:250k, 7:500k 
 
-def test(dataset_path):
+def test(dataset_path, n):
     times = [] # [0] : add, [1] : search, [2] : range search, [3] : erase
 
     print(f"\n📂 Testing dataset: {os.path.basename(dataset_path)}")
@@ -27,7 +28,10 @@ def test(dataset_path):
     start_time = time.time()
     with open(dataset_path, newline='', encoding='utf-8') as csvfile:
         reader = csv.DictReader(csvfile)
+        cc = 0
         for row in reader:
+            if cc > n:
+                break
             reg = Registro(
                 id=int(row['id']),
                 name=row['name'],
@@ -42,6 +46,7 @@ def test(dataset_path):
                 wikiDataId=row['wikiDataId']
             )
             seq.add(reg)
+            cc += 1
 
     insert_time = time.time() - start_time
     times.append(insert_time)
@@ -96,7 +101,7 @@ def test(dataset_path):
     
     return times
 
-times_test = test(files[3])
+times_test = test(files[2], 30000)
 print("\n ALL TIMES:")
 print(f"Insertion: {times_test[0]} | Search: {times_test[1]} | Range search: {times_test[2]} | Deletion: {times_test[3]}")
 
