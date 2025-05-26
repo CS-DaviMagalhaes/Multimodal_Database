@@ -46,7 +46,27 @@ class RTreeMetadata:
                 file.write(struct.pack(self.FORMAT, key, pos, lon, lat, -1))
                 self.write_header(next_free)
     
-    def get(self, key):
+    def get(self, pos):
+        with open(self.filename, 'rb') as file:
+            file.seek(self.HEADER_SIZE)
+            index = 0
+            while True:
+                bytes_read = file.read(self.SIZE)
+                if not bytes_read or len(bytes_read) < self.SIZE:
+                    break
+                unpacked = struct.unpack(self.FORMAT, bytes_read)
+                if unpacked[1] == pos:
+                    return {
+                        'key': unpacked[0],
+                        'pos': unpacked[1],
+                        'lon': unpacked[2],
+                        'lat': unpacked[3],
+                        'offset': self.HEADER_SIZE + index * self.SIZE
+                    }
+                index += 1
+        return None
+
+    def _get_key(self, key):
         with open(self.filename, 'rb') as file:
             file.seek(self.HEADER_SIZE)
             index = 0
@@ -66,14 +86,10 @@ class RTreeMetadata:
                 index += 1
         return None
 
-    def erase(self, key):
-        entry = self.get(key)
-        if not entry:
-            return False
+    def erase(self, entry):
         offset = entry['offset']
         free_head = self.read_header()
         with open(self.filename, 'r+b') as file:
             file.seek(offset)
             file.write(struct.pack(self.FORMAT, -1, -1, 0.0, 0.0, free_head))
         self.write_header((offset - self.HEADER_SIZE) // self.SIZE)
-        return True

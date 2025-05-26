@@ -1,5 +1,4 @@
 from rtree import index
-from record import Registro
 from metadata import RTreeMetadata
 
 class RTreeIndex:
@@ -9,15 +8,15 @@ class RTreeIndex:
     La libreria no maneja puntos directamente, sino como boxes de area 0.
     Para manejar puntos (lon, lat), crear box (lon, lat, lon, lat)
     """
-    def __init__(self, index_name="./rtree_index", metadata_file="./rtree_metadata.dat"):            
+    def __init__(self, index_name):            
         p = index.Property()
         p.dimension = 2
         p.overwrite = False
 
         self.rtree_idx = index.Index(index_name, properties=p)
-        self.meta_file = RTreeMetadata(metadata_file)
+        self.meta_file = RTreeMetadata(index_name + ".meta.dat")
 
-    def add(self, reg: Registro, reg_pos: int):
+    def add(self, reg, reg_pos: int):
         """
         Insertamos un record al árbol. Asumimos que la data
         viene enpaquetada antes de insertar al RTree.
@@ -26,35 +25,24 @@ class RTreeIndex:
         self.rtree_idx.insert(reg_pos, point)
         self.meta_file.add(reg.id, reg_pos, reg.longitude, reg.latitude)
 
-    def box_search(self, begin_coords, end_coords):
+    def box_search(self, lower_coords, upper_coords):
         """
-        Buscar puntos dentro de un box definido por (begin_key) y (end_key).
+        Buscar puntos dentro de un box definido por (lower_coords) y (upper_coords).
         Devuelve unicamente los punteros que debe leer la clase principal
         """
-        min_lon, min_lat = begin_coords
-        max_lon, max_lat = end_coords
+        min_lon, min_lat = lower_coords
+        max_lon, max_lat = upper_coords
         query = (min_lon, min_lat, max_lon, max_lat)
         matches = list(self.rtree_idx.intersection(query))
+        return matches
 
-        results = []
-        for key in matches:
-            entry = self.meta_file.get(key)
-            if entry:
-                results.append(entry['pos'])
-        return results
-
-    def radius_search(self, key, radius):
+    def radius_search(self, coords, radius):
         """
         Busca elementos dentro de un radio definido por 
-        las coordenadas de un elemento dentro del árbol 
-        (x,y) y un radius.
+        las coordenadas de un punto] (x,y) y un radio.
         Devuelve todos los keys dentro del círculo
-        """
-        centro = self.meta_file.get(key)
-        if not centro:
-            return []
-    
-        cx, cy = centro['lon'], centro['lat']
+        """    
+        cx, cy = coords
         
         min_lon, min_lat = cx - radius, cy - radius
         max_lon, max_lat = cx + radius, cy + radius
@@ -62,8 +50,8 @@ class RTreeIndex:
         matches = list(self.rtree_idx.intersection((min_lon, min_lat, max_lon, max_lat)))
         results = []
 
-        for key in matches:
-            e = self.meta_file.get(key)
+        for pos in matches:
+            e = self.meta_file.get(pos)
             if e:
                 dx, dy = e['lon'] - cx, e['lat'] - cy
                 dist = (dx*dx + dy*dy)**0.5
@@ -72,37 +60,26 @@ class RTreeIndex:
         
         return results
 
-    def knn_search(self, key, k):
+    def knn_search(self, coords, k):
         """
         Devuelve los k vecinos más cercanos de cierto
         elemento dentro del árbol.
         """
-        centro = self.meta_file.get(key)
-        if not centro:
-            return []
-    
-        cx, cy = centro['lon'], centro['lat']
+        cx, cy = coords
         point = (cx, cy, cx, cy)
-        neighbours = list(self.rtree_idx.nearest(point, num_results=k+1))
-        matches = [nid for nid in neighbours if nid != key]
-
-        results = []
-        for key in matches[:k]:
-            entry = self.meta_file.get(key)
-            if entry:
-                results.append(entry['pos'])
-        return results
+        neighbours = list(self.rtree_idx.nearest(point, num_results=k))
+        return neighbours[:k]
 
     def erase(self, key):
         """
         Eliminacion de un record en específico.
-        Le pasamos la key y las coordenadas del punto.
+        Pasamos una posicion en especifico
         """
-        entry = self.meta_file.get(key)
+        entry = self.meta_file._get_key(key)
         if not entry:
-            raise KeyError(f"Key {key} no presente en metadata")
+            raise KeyError(f"Registro {key} no presente en metadata")
         
         lon, lat = entry['lon'], entry['lat']
         point = (lon, lat, lon, lat)
-        self.rtree_idx.delete(key, point)
-        self.meta_file.erase(key)
+        self.rtree_idx.delete(entry['pos'], point)
+        self.meta_file.erase(entry)
