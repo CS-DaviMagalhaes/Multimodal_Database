@@ -10,7 +10,7 @@ class RTreeMetadata:
     Archivo de metadata para el RTree. Manejado con un free list, mantiene 
     el id, posicion y coordenadas de cada registro dentro del RTree.
     """
-    FORMAT = 'i i f f i'
+    FORMAT = 'i i f f i' # key, pos, lon, lat, free
     SIZE = struct.calcsize(FORMAT)
     HEADER_FORMAT = 'i'
     HEADER_SIZE = struct.calcsize(HEADER_FORMAT)
@@ -47,44 +47,25 @@ class RTreeMetadata:
                 self.write_header(next_free)
     
     def get(self, pos):
+        offset = self.HEADER_SIZE + pos * self.SIZE 
         with open(self.filename, 'rb') as file:
-            file.seek(self.HEADER_SIZE)
-            index = 0
-            while True:
-                bytes_read = file.read(self.SIZE)
-                if not bytes_read or len(bytes_read) < self.SIZE:
-                    break
-                unpacked = struct.unpack(self.FORMAT, bytes_read)
-                if unpacked[1] == pos:
-                    return {
-                        'key': unpacked[0],
-                        'pos': unpacked[1],
-                        'lon': unpacked[2],
-                        'lat': unpacked[3],
-                        'offset': self.HEADER_SIZE + index * self.SIZE
-                    }
-                index += 1
-        return None
+            file.seek(offset)
+            bytes_read = file.read(self.SIZE)
 
-    def _get_key(self, key):
-        with open(self.filename, 'rb') as file:
-            file.seek(self.HEADER_SIZE)
-            index = 0
-            while True:
-                bytes_read = file.read(self.SIZE)
-                if not bytes_read or len(bytes_read) < self.SIZE:
-                    break
-                unpacked = struct.unpack(self.FORMAT, bytes_read)
-                if unpacked[0] == key:
-                    return {
-                        'key': unpacked[0],
-                        'pos': unpacked[1],
-                        'lon': unpacked[2],
-                        'lat': unpacked[3],
-                        'offset': self.HEADER_SIZE + index * self.SIZE
-                    }
-                index += 1
-        return None
+            if not bytes_read or len(bytes_read) < self.SIZE:
+                return None
+            
+            unpacked = struct.unpack(self.FORMAT, bytes_read)
+            if unpacked[0] == -1:
+                return None
+
+            return {
+                'key': unpacked[0],
+                'pos': unpacked[1],
+                'lon': unpacked[2],
+                'lat': unpacked[3],
+                'offset': offset
+            }
 
     def erase(self, entry):
         offset = entry['offset']

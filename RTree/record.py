@@ -37,7 +37,7 @@ class FreeList:
 class FixedRecord:
     def __init__(self, filename):
         self.filename = filename + ".dat"
-        self.metadata = FreeList(filename + ".free.dat")
+        self.free_list = FreeList(filename + ".free.dat")
         self.index = RTreeIndex(index_name=filename + ".rtree")
 
         if not os.path.exists(self.filename):
@@ -55,11 +55,11 @@ class FixedRecord:
                 registros.append((pos, Registro.from_bytes(data)))
                 pos += 1
 
-        free_positions = set(self.metadata.get_all())
+        free_positions = set(self.free_list.get_all())
         return [registro for i, registro in registros if i not in free_positions]
 
     def add(self, registro):
-        pos = self.metadata.pop()
+        pos = self.free_list.pop()
         with open(self.filename, 'r+b') as file:
             if pos is not None:
                 file.seek(pos * Registro.SIZE)
@@ -101,8 +101,8 @@ class FixedRecord:
         registros = [self.read(match) for match in matches]
         return registros
 
-    def knn_search(self, key, k):
-        matches = self.index.knn_search(key, k)
+    def knn_search(self, coords, k):
+        matches = self.index.knn_search(coords, k)
 
         if not matches:
             return None
@@ -112,4 +112,4 @@ class FixedRecord:
 
     def remove(self, pos):
         self.index.erase(pos)
-        self.metadata.add(pos)
+        self.free_list.add(pos)
