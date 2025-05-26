@@ -45,6 +45,7 @@ class FixedRecord:
                 pass
 
     def load(self):
+        free_positions = set(self.free_list.get_all())
         registros = []
         with open(self.filename, 'rb') as file:
             pos = 0
@@ -52,11 +53,11 @@ class FixedRecord:
                 data = file.read(Registro.SIZE)
                 if not data or len(data) < Registro.SIZE:
                     break
-                registros.append((pos, Registro.from_bytes(data)))
+                if pos not in free_positions:
+                    registros.append((pos, Registro.from_bytes(data)))
                 pos += 1
 
-        free_positions = set(self.free_list.get_all())
-        return [registro for i, registro in registros if i not in free_positions]
+        return registros
 
     def add(self, registro):
         pos = self.free_list.pop()
@@ -72,6 +73,8 @@ class FixedRecord:
         return pos
 
     def read(self, pos):
+        if pos in self.free_list.get_all():
+            return None
         with open(self.filename, 'rb') as file:
             file.seek(pos * Registro.SIZE)
             data = file.read(Registro.SIZE)
