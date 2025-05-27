@@ -2,6 +2,85 @@
 
 Sistema de Base de Datos Multimodal con Indexación Avanzada
 
+## 🧠 Backend (FastAPI)
+
+Este backend simula un sistema de base de datos que interpreta consultas SQL básicas (`CREATE TABLE`, `INSERT`, `SELECT`, `CREATE INDEX`) y las ejecuta sobre archivos binarios. Usa una estructura de almacenamiento personalizada junto con algoritmos de índices como B+ Tree, con soporte planificado para AVL y secuencial.
+
+### 🔧 Funcionalidades implementadas:
+
+- **CREATE TABLE**: 
+  - Guarda la estructura de la tabla en un archivo `.meta` dentro de `/tablas/`.
+  - Crea un archivo `.tbl` binario para almacenar los registros.
+
+- **INSERT INTO**:
+  - Inserta datos en el archivo binario correspondiente.
+  - Valida claves primarias si están definidas.
+  - Si existen índices para las columnas, los actualiza automáticamente.
+
+- **CREATE INDEX**:
+  - Soporte actual para índice `BPLUS`, pronto para `AVL` y `SEQUENTIAL`.
+  - Crea un archivo `.idx` en `/indices/` con estructura binaria.
+  - Permite usar estructuras de árbol para búsquedas rápidas.
+
+- **SELECT**:
+  - Soporta:
+    - `SELECT * FROM tabla`
+    - `SELECT columna1, columna2 FROM tabla`
+    - `SELECT ... WHERE columna = valor`
+    - `SELECT ... WHERE columna BETWEEN valor1 AND valor2`
+  - Si hay índice creado en la columna usada en `WHERE`, se utiliza automáticamente para optimizar el acceso (usa `search` o `rangeSearch`).
+  - Si no hay índice, la búsqueda es secuencial.
+
+### 📂 Organización de archivos:
+
+| Carpeta     | Contenido                          |
+|-------------|------------------------------------|
+| `tablas/`   | `.meta` y `.tbl` por cada tabla    |
+| `indices/`  | Archivos `.idx` por índice creado  |
+| `algoritmos/` | Implementaciones de índices       |
+
+### 🔐 Estructuras de archivo:
+
+- Header del archivo `.idx`: contiene info sobre posición root, libres, eliminados.
+- Registro binario `.tbl`: estructurado con `struct.pack` según tipos definidos en `.meta`.
+
+---
+
+## 🖥️ Frontend (React)
+
+Este frontend es una interfaz web simple para interactuar con el backend simulando una consola SQL. Permite enviar consultas manuales y visualizar resultados en tiempo real.
+
+### ✨ Características:
+
+- **Textarea para consultas SQL**:
+  - Envía la consulta como JSON al backend (`POST /query`)
+  - Compatible con todos los comandos mencionados
+
+- **Autocompletado básico**:
+  - Sugiere palabras clave SQL (`SELECT`, `WHERE`, etc.)
+  - También sugiere nombres de tablas y columnas conocidas
+  - Inserta automáticamente la palabra seleccionada
+
+- **Visualización de resultados**:
+  - Si el resultado es un `SELECT`, se renderiza una tabla HTML con los datos.
+  - El resultado crudo (JSON) también se muestra debajo como referencia técnica.
+
+- **Botón adicional "Ver registros"**:
+  - Llama directamente al endpoint `GET /select/{tabla}` para obtener todos los registros (búsqueda secuencial).
+
+### 🧩 Estado del frontend:
+
+- Interfaz responsiva y fácil de extender
+- Backend y frontend conectados por defecto en `http://localhost:3000` ↔ `http://localhost:8000`
+
+---
+
+
+
+
+
+
+
 ## Dataset
 Utilizamos el dataset `cities` que tiene `148061` registros con los siguientes atributos: 
 - `id`: id de la ciudad

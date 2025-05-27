@@ -7,7 +7,7 @@ class Registro:
         self.tabla = tabla
         self.columnas = columnas
         self.format_str = self._generar_format()
-        self.filename = f"{tabla}.tbl"
+        self.filename = os.path.join("tablas", f"{tabla}.tbl")
 
     def _generar_format(self):
         formato = ""
