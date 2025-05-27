@@ -218,6 +218,7 @@ class SequentialFile:
         count = self._read_header()
         erased = False
         pos = self._lower_bound(key)
+        deleted_any = False
 
         if pos is None:
             return False

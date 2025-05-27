@@ -30,7 +30,7 @@ def test(dataset_path, n):
         reader = csv.DictReader(csvfile)
         cc = 0
         for row in reader:
-            if cc > n:
+            if cc >= n:
                 break
             reg = Registro(
                 id=int(row['id']),
@@ -51,7 +51,7 @@ def test(dataset_path, n):
     insert_time = time.time() - start_time
     times.append(insert_time)
 
-    _, count = seq._read_header()
+    count = seq._read_header()
     aux_count = seq._count_aux_registros()
     print(f"Inserted {count} in main file, {aux_count} in auxiliary space. Total = {count + aux_count}.")
     print(f"⏱ Insert time: {insert_time:.4f}s")
