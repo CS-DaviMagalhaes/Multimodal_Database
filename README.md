@@ -221,7 +221,7 @@ Para mejorar la eficiencia y evitar acceso por registro, se leen y escriben bloq
 ---
 ## Sequential File
 
-La implementación del Sequential File se diseñó para que trabaje en un solo archivo (sin metadata) con cabezera, usando las técnicas del espacio auxiliar y linked records.
+La implementación del Sequential File se diseñó para que trabaje en un solo archivo (sin metadata) con cabezera, usando las técnicas del espacio auxiliar.
 
 #### Espacio auxiliar 
 
@@ -230,12 +230,6 @@ El archivo esta dividido en dos partes: la página principal y el espacio auxili
 Una vez alcanzado, reconstruiremos la página principal, donde se reorganizarán todos los registros (incluyendo los del espacio auxiliar) ordenados por una key predeterminada por el usuario.
 
 El propósito de este diseño es para resolver el problema de desborde de espacio, así como ahorrarse las complejidades de mantener ordenados todos los registros constantemente.
-
-#### Linked records
-
-Para hacer más fácil la preservación de orden, se agregó un campo *next* a cada uno de los registros, que almacena la posición física del siguiente registro según el orden lógico del archivo (determinado por una *key*).
-
-Esta decisión trivializa las operaciones de borrado, donde solo desenlazamos el registro a eliminar, liberando su espacio para la siguiente reconstrucción.
 
 ### 1. Inserción
 
@@ -247,7 +241,7 @@ Descontando el coste de reconstrucción, las inserciones cuenta con complejidad 
 
 El diseño de la implementación le otorga al *sequential file* la capacidad de búsquedas binarias bajo una *key*. Este tipo de búsquedas se caracterizan por ser el tipo de búsqueda más eficiente, puesto que cuenta con complejidad de apenas $O(\log n)$.
 
-Para optimizarla aún más, se utilizó la librería ```bisect``` de Python, lo que nos garantiza búsquedas veloces.
+En nuestra implementación, partimos de una búsqueda binaria a la key, lo que devuelvue la primera aparición del registro con la key objetivo. En caso existan otros registros con la misma key, se iteran sobre los registros siguientes hasta que encuentre un key diferente
 
 ### 3. Búsqueda por rango
 
@@ -255,13 +249,9 @@ Para las búsquedas por rango, se aplicaron dos búsquedas binarias para ubicar 
 
 Este diseño nos da una complejidad $O(\log n)$ para las búqueda de los índices y $O(m)$ para recorrer el rango. Asumiendo que $m < n \to m \approx \log n$, nos da una complejidad final de $O(\log n)$.
 
-### 4. Borrado
+### 4.Borrado
 
-Como se mencionó anteriormente, el borrado consiste en desenlazar el registro, uniendo el registro anterior con el siguiente según el orden lógico del archivo. Sin embargo, no se contó con agregar un atributo *prev* para guardar la posición del archivo anterior, lo que impide hacer uso de una búsqueda binaria para ubicar el registro a borrar.
-
-Por lo tanto, se empleó una búsqueda sequencial sobre el archivo, almacenando la posición del registro anterior hasta encontar el registro correcto. Una vez ubicado, se desenlaza a través del campo *next* de cada registro.
-
-Este diseño nos da un costo $O(n)$ del borrado en el peor de los casos.
+Para el borrado, solo basta usar la misma lógica del ```search()```, solo que en vez de almacenar los matches, activamos la flag ```deleted``` del registro. El espacio liberado por estos será utilizado en el próximo ```rebuild()```.
 
 ### Experimentación y resultados
 
