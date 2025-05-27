@@ -265,3 +265,51 @@ Se aplicó un ```remove()``` a 100 elementos aleatorios, promediando el tiempo f
 ![remove_rtree](./imgs/remove_rtree.png)
 
 ---
+
+## B+ Index
+Con el objetivo de mejorar la eficiencia en las búsquedas sobre archivos de datos, se implementó un índice basado en un árbol B+ no agrupado (unclustered). Esta estructura permite mantener las claves ordenadas y enlazadas en nodos hoja, mientras que los datos reales se almacenan en un archivo separado. Las hojas contienen punteros a la posición física del registro en el archivo de datos.
+
+Además, cada nodo hoja mantiene un campo next que enlaza con la siguiente hoja, lo que permite recorridos eficientes y búsquedas por rango. El árbol maneja claves de tipo int o string (hasta 30 caracteres), según el parámetro de configuración.
+
+La estructura está respaldada por un archivo binario que almacena los nodos, con una cabecera que contiene:
+
+Posición del nodo raíz
+
+Posición libre (para insertar nuevos nodos)
+
+Posición del nodo eliminado (para reutilización de espacio)
+
+### 1. Inserción
+La inserción sigue el recorrido típico del árbol B+, localizando la hoja adecuada para insertar la nueva clave. Si la hoja tiene espacio, se inserta ordenadamente. En caso de desbordamiento, se realiza una división (split) del nodo y se propaga hacia arriba si es necesario, manteniendo la altura mínima del árbol.
+
+Cada clave insertada en una hoja se enlaza con una posición exacta en el archivo de datos, actuando como índice secundario.
+
+La complejidad de inserción es $O(\log n)$, correspondiente a la altura del árbol.
+
+### 2. Búsqueda singular
+Para realizar búsquedas puntuales, el índice recorre desde la raíz hasta una hoja aplicando comparación binaria en cada nodo para determinar el hijo correspondiente. Una vez en la hoja, se verifica si la clave existe y se retorna la posición del registro en el archivo de datos.
+
+Este diseño garantiza una complejidad de búsqueda $O(\log n)$.
+
+### 3. Búsqueda por rango
+Gracias a que las hojas están enlazadas mediante el campo next, la búsqueda por rango es eficiente. Primero, se localiza la primera clave del rango mediante búsqueda estándar. Luego, se recorren las hojas sucesivas mientras las claves estén dentro del rango.
+
+Este diseño ofrece complejidad $O(\log n)$ para ubicar el inicio del rango y $O(m)$ para recorrer $m$ claves dentro del mismo. Bajo el supuesto de que $m \approx \log n$, la complejidad se mantiene en $O(\log n)$.
+
+### 4. Borrado
+Actualmente, el índice no implementa una operación de borrado. Sin embargo, se ha considerado la gestión del espacio libre mediante un campo de posición eliminada en la cabecera, pensado para futuras extensiones que permitan reutilizar nodos liberados.
+
+### Experimentación y resultados
+Para evaluar el rendimiento de nuestro índice B+, se realizaron pruebas de inserción sobre un subconjunto del dataset cities, usando distintos valores del orden del árbol m (5, 10 , 25 y 100). Cada configuración fue evaluada registrando el tiempo total de inserción y el tamaño final del archivo generado.
+
+Los resultados fueron los siguientes:
+
+m = 5: Tiempo de inserción = 36 segundos, Tamaño del archivo = 3.9 MB
+
+m = 10: Tiempo de inserción = 33 segundos, Tamaño del archivo = 3.3 MB
+
+m = 25: Tiempo de inserción = 31 segundos, Tamaño del archivo = 2.8 MB
+
+m = 100: Tiempo de inserción = 28 segundos, Tamaño del archivo = 2.6 MB
+
+Como se puede observar, aumentar el valor de m mejora tanto el tiempo de inserción como el uso de espacio, debido a que se reducen las divisiones de nodos y se mejora la compactación del árbol. Esto confirma que una mayor capacidad de fan-out en los nodos del B+ Tree puede resultar beneficiosa para datasets de tamaño considerable.
