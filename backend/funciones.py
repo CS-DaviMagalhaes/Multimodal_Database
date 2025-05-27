@@ -1,4 +1,5 @@
 import sqlparse
+import re
 
 def parse_create_table(query):
     parsed = sqlparse.parse(query)[0]
@@ -42,6 +43,27 @@ def parse_insert(query):
         return {"tabla": tabla, "valores": valores}
     except Exception:
         return None
+
+
+def parse_create_index(query):
+    query = query.strip().strip(";")
+    pattern = r"CREATE\s+INDEX\s+(\w+)\s+ON\s+(\w+)\s*\(\s*(\w+)\s*\)\s*(USING\s+(\w+))?"
+    match = re.match(pattern, query, re.IGNORECASE)
+
+    if not match:
+        return None
+
+    nombre = match.group(1)
+    tabla = match.group(2)
+    columna = match.group(3)
+    algoritmo = match.group(5).upper() if match.group(5) else "BPLUS"
+
+    return {
+        "nombre": nombre,
+        "tabla": tabla,
+        "columna": columna,
+        "algoritmo": algoritmo
+    }
 
 def extraer_tabla_from_select(query):
     query = query.lower().strip()

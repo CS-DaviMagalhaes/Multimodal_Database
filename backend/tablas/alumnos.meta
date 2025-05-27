@@ -1,0 +1,1 @@
+{"tabla": "alumnos", "columnas": [{"nombre": "id", "tipo": "int", "pk": true}, {"nombre": "nombre", "tipo": "varchar(30)", "pk": false}, {"nombre": "edad", "tipo": "int", "pk": false}]}
