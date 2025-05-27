@@ -208,4 +208,10 @@ Se creó un archivo Metadata que almacenaba los campos necesarios de cada regist
 
 Gracias a la librería, la implementación de los métodos del *RTree* consistió en convertir los hiperparámetros en los adecuados para ejecutar el correspondiente del ```rtree```. Solo dos métodos necesitaron de lógica extra para su correcto funcionamiento:
 
-- ```radius_search((x, y), r)```: se realizó 
+- ```radius_search((x, y), r)```: se realizó una query sobre el rectángulo definido por los puntos $(x-r, y-r)$ y $(x+r, y+r)$.
+Una vez obtenidos los registros extraídos, se filtraron aquellos que excedían su distancia hacia el centro $(x, y)$ calculado con la distancia euclidiana.
+- ```erase(pos)```: usando la *metadata*, se obtenían las coordenadas *lon* y *lat* del registro, puesto que ```rtree``` no elimina elementos definidos por la *key*, sino que tambíen necesita de sus coordenadas.
+
+Tanto la inserción como la búsqueda por rectángulo y la búsqueda KNN fueron interfaces de los métodos ```insert(rectangle)```, ```intersects(rectangle)``` y ```nearest(rectangle, k)``` del ```rtree```, siendo los puntos pasados como rectángulos de área 0.
+
+```
