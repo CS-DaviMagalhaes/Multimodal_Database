@@ -1,7 +1,8 @@
 # Multimodal_Database
+
 Sistema de Base de Datos Multimodal con Indexación Avanzada
 
-# Dataset
+## Dataset
 Utilizamos el dataset `cities` que tiene `148061` registros con los siguientes atributos: 
 - `id`: id de la ciudad
 - `name`: nombre de la ciudad
@@ -15,10 +16,13 @@ Utilizamos el dataset `cities` que tiene `148061` registros con los siguientes a
 - `longitude`: coordenada longitud
 - `wikiDataId`: id de la ciudad registrado en wikidata.org
 
-# Extendible Hashing
+---
+
+## Extendible Hashing
+
 Extendible Hashing que mantiene el índice en RAM y los buckets en disco, permitiendo inserciones, búsquedas, splits y overflows de forma eficiente.
 
-## Estrategias utilizadas en la implementación
+### Estrategias utilizadas en la implementación
 
 ### Estructura general
 Mientras estamos trabajando sobre el archivo del índice lo almacenamos en RAM para poder hacer operaciones de forma más eficiente. Cada cambio hecho al
@@ -53,7 +57,7 @@ Aplicamos hash al id numerico de los registros. Simplemente se inserta en el pri
 Así reutilizamos los espacios que fueron borrados en remove. Si la profundidad local del bucket es menor a la profundidad global hacemos split en caso el
 bucket esté lleno. En caso ya no se pueda hacer split creamos buckets de overflow y los encadenamos.
 
-## Experimentación y Resultados
+### Experimentación y Resultados
 Para la experimentación variamos los parámetros `fb` y `D` para poder tener una distribución de registros y un índice balanceado, ya que las pruebas varían
 en la cantidad de datos. Así logramos tener tiempos eficientes para inserción, búsqueda y borrado. Utilizamos los siguientes valores:
 
@@ -85,7 +89,7 @@ Hicimos el borrado de 100 keys aleatorios del dataset y sacamos el promedio:
 
 ![Remove](./imgs/remove_hash.png)
 
-
+---
 
 ## ISAM
 
@@ -134,3 +138,74 @@ Esta estrategia imita el comportamiento real del ISAM y permite realizar búsque
 
 ### 7. Lectura y Escritura Página por Página
 Para mejorar la eficiencia y evitar acceso por registro, se leen y escriben bloques completos (páginas) en lugar de registros individuales.
+
+---
+## Sequential File
+
+La implementación del Sequential File se diseñó para que trabaje en un solo archivo (sin metadata) con cabezera, usando las técnicas del espacio auxiliar y linked records.
+
+#### Espacio auxiliar 
+
+El archivo esta dividido en dos partes: la página principal y el espacio auxiliar. En este último es donde se irán insertando los registros hasta llegar a un *threshold* ($O(n)$ donde $n$ es la cantidad de registros en la página principal). 
+
+Una vez alcanzado, reconstruiremos la página principal, donde se reorganizarán todos los registros (incluyendo los del espacio auxiliar) ordenados por una key predeterminada por el usuario.
+
+El propósito de este diseño es para resolver el problema de desborde de espacio, así como ahorrarse las complejidades de mantener ordenados todos los registros constantemente.
+
+#### Linked records
+
+Para hacer más fácil la preservación de orden, se agregó un campo *next* a cada uno de los registros, que almacena la posición física del siguiente registro según el orden lógico del archivo (determinado por una *key*).
+
+Esta decisión trivializa las operaciones de borrado, donde solo desenlazamos el registro a eliminar, liberando su espacio para la siguiente reconstrucción.
+
+### 1. Inserción
+
+En nuestra implementación, la inserción ocurre dentro del espacio auxiliar, donde se apilan los registros. Con cada inserción actualizamos el conteo de registros en la cabezera. Si dicha inserción activa una alerta de desborde, entonces se reconstruye el archivo, limpiando el espacio auxiliar.
+
+Descontando el coste de reconstrucción, las inserciones cuenta con complejidad $O(1)$.
+
+### 2. Búsqueda singular
+
+El diseño de la implementación le otorga al *sequential file* la capacidad de búsquedas binarias bajo una *key*. Este tipo de búsquedas se caracterizan por ser el tipo de búsqueda más eficiente, puesto que cuenta con complejidad de apenas $O(\log n)$.
+
+Para optimizarla aún más, se utilizó la librería ```bisect``` de Python, lo que nos garantiza búsquedas veloces.
+
+### 3. Búsqueda por rango
+
+Para las búsquedas por rango, se aplicaron dos búsquedas binarias para ubicar las posiciones del elemento iniclal y final del rango. Una vez encontrado, solo se recorría dicho rango se forma linear.
+
+Este diseño nos da una complejidad $O(\log n)$ para las búqueda de los índices y $O(m)$ para recorrer el rango. Asumiendo que $m < n \to m \approx \log n$, nos da una complejidad final de $O(\log n)$.
+
+### 4. Borrado
+
+Como se mencionó anteriormente, el borrado consiste en desenlazar el registro, uniendo el registro anterior con el siguiente según el orden lógico del archivo. Sin embargo, no se contó con agregar un atributo *prev* para guardar la posición del archivo anterior, lo que impide hacer uso de una búsqueda binaria para ubicar el registro a borrar.
+
+Por lo tanto, se empleó una búsqueda sequencial sobre el archivo, almacenando la posición del registro anterior hasta encontar el registro correcto. Una vez ubicado, se desenlaza a través del campo *next* de cada registro.
+
+Este diseño nos da un costo $O(n)$ del borrado en el peor de los casos.
+
+---
+
+## RTree
+
+Para la implementación del índice *RTree*, se diseñó para desacoplarlo del archivo principal, siendo este índice almacenado en múltiples archivos metadata, y se utilizó principalmente la librería ```rtree``` de Python.
+
+El archivo principal solo se encargaría de apilar los registros, siendo una interfaz para el índice *RTree*. Para manejar los borrados, cuenta con una *free list* almacenada en otro archivo aparte.
+
+#### Librería ```rtree```
+
+Esta librería aportó con la implementación de la estructura de datos, así como sus métodos para las inserciones, queries y borrados. Cuenta con métodos para almacenarse en memoria secundaria a través de archivos ```.rtree.dat``` y ```.rtree.idx```. Sin embargo, esta librería contaba con limitaciones que requerían el uso de un archivo metadata personalizado para este proyecto:
+
+- No maneja puntos, por lo que cada registro fue insertado como un rectángulo de area 0.
+- La llave de cada una de las hojas requerían un orden incremental, por lo que se utilizó la posición de cada registro en el archivo principal en lugar de su *id*.
+- No cuenta con métodos para búsquedas por radio. 
+
+#### Metadata
+
+Se creó un archivo Metadata que almacenaba los campos necesarios de cada registro para los métodos del *RTree* (como posición, longitud, latitud). Principalmente usado por la búsqueda radial y el borrado.
+
+### Métodos
+
+Gracias a la librería, la implementación de los métodos del *RTree* consistió en convertir los hiperparámetros en los adecuados para ejecutar el correspondiente del ```rtree```. Solo dos métodos necesitaron de lógica extra para su correcto funcionamiento:
+
+- ```radius_search((x, y), r)```: se realizó 
