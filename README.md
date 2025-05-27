@@ -184,6 +184,18 @@ Por lo tanto, se empleó una búsqueda sequencial sobre el archivo, almacenando 
 
 Este diseño nos da un costo $O(n)$ del borrado en el peor de los casos.
 
+### Experimentación y resultados
+
+Para la fase de experimentación de este índice, se utilizó un slice del dataset *cities* de distintos tamaños $(1000, 5000, 1k, 15k, 20k, 25k, 30k)$ y se determinó como llave al ```id``` de los registros. Se analizaron los tiempos de ejecución de cada uno de los métodos para cada tamaño del dataset, con el fin de analizar su rendimiento.
+
+#### Inserción
+
+#### Search (100 elementos aleatorios)
+
+#### Range Search (rango de tamaño 100)
+
+#### Borrado (100 elementos aleatorios)
+
 ---
 
 ## RTree
@@ -214,4 +226,18 @@ Una vez obtenidos los registros extraídos, se filtraron aquellos que excedían 
 
 Tanto la inserción como la búsqueda por rectángulo y la búsqueda KNN fueron interfaces de los métodos ```insert(rectangle)```, ```intersects(rectangle)``` y ```nearest(rectangle, k)``` del ```rtree```, siendo los puntos pasados como rectángulos de área 0.
 
-```
+### Experimentación y resultados
+
+Para la fase de experimentación de este índice, se utilizó un slice del dataset *cities* de distintos tamaños $(1000, 5000, 1k, 15k, 20k, 25k, 30k)$. Se analizaron los tiempos de ejecución de cada uno de los métodos para cada tamaño del dataset, con el fin de analizar su rendimiento.
+
+#### Inserción
+
+#### Box Query
+
+#### Radial Query
+
+#### 100-Nearest Neighbors
+
+#### Borrado (100 elementos aleatorios)
+
+---
