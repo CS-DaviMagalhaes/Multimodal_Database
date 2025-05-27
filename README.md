@@ -190,11 +190,23 @@ Para la fase de experimentación de este índice, se utilizó un slice del datas
 
 #### Inserción
 
-#### Search (100 elementos aleatorios)
+![insert_seq](./imgs/insert_seq.png)
+
+#### Search
+
+Se aplicó un ```search()``` a 100 elementos aleatorios, promediando el tiempo final.
+
+![search_seq](./imgs/search_seq.png)
 
 #### Range Search (rango de tamaño 100)
 
-#### Borrado (100 elementos aleatorios)
+![range_seq](./imgs/rangesearch_seq.png)
+
+#### Borrado
+
+Se aplicó un ```remove()``` a 100 elementos aleatorios, promediando el tiempo final.
+
+![remove_seq](./imgs/remove_seq.png)
 
 ---
 
@@ -232,12 +244,24 @@ Para la fase de experimentación de este índice, se utilizó un slice del datas
 
 #### Inserción
 
+![insert_rtree](./imgs/insert_rtree.png)
+
 #### Box Query
+
+![box_rtree](./imgs/box_rtree.png)
 
 #### Radial Query
 
+![radial_rtree](./imgs/radial_rtree.png)
+
 #### 100-Nearest Neighbors
 
-#### Borrado (100 elementos aleatorios)
+![knn_rtree](./imgs/knn_rtree.png)
+
+#### Borrado
+
+Se aplicó un ```remove()``` a 100 elementos aleatorios, promediando el tiempo final.
+
+![remove_rtree](./imgs/remove_rtree.png)
 
 ---
