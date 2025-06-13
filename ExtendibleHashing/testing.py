@@ -1,5 +1,5 @@
-from extendible_hashing import HashIndex
-from cities import Registro
+from extendible_hashing import HashIndex, Registro
+import os
 
 ## Usar fb=2, D=2 para poder ver bien los splits, overflow y reconstrucción
 
@@ -35,7 +35,7 @@ hash_index_reopen.print_data()
 hash_index_reopen.print_index()
 
 # test search, on regular and overflow buckets
-search_keys = [3, 5, 128, 2, 0]
+search_keys = [3, 5, 128, 2, 9991]
 for key in search_keys: 
     reg = hash_index_reopen.search(key)
     if reg == None: 
@@ -64,3 +64,59 @@ hash_index_reopen.print_index()
 
 #os.remove("data.bin")          
 #os.remove("hash_index.bin")
+
+
+## Test para la otra clase de registro ##
+"""
+#hago los mismos test pero ahora con la otra clase registro
+
+index = HashIndex("hash_index.bin")
+
+# TEST insert, split and overflow"
+regs = [Registro(2,1),
+        Registro(1,2),
+        Registro(8,3),
+        Registro(16),
+        Registro(32),
+        Registro(3),
+        Registro(5),
+        Registro(9),
+        Registro(64),
+        Registro(128)]
+
+for reg in regs: 
+    index.insert(reg)
+index.print_data()
+index.print_index()
+
+# test search, on regular and overflow buckets
+search_keys = [3, 5, 128, 2, 9991]
+for key in search_keys: 
+    reg = index.search(key)
+    if reg == None: 
+        print(f"No se encontró el registro con el key {key}")
+    else: 
+       reg.print_reg()
+
+## Test remove and reconstruct ##
+remove_keys = [2, 128, 32, 8, 9]
+for key in remove_keys:
+    index.remove(key)
+
+index.print_data()
+index.print_index()
+
+
+## Test insert after remove ## 
+new_regs = [Registro(128),
+            Registro(7),
+            Registro(256),
+             Registro(512)]
+for reg in new_regs:
+    index.insert(reg)
+index.print_data()
+index.print_index()
+
+#os.remove("data.bin")          
+#os.remove("hash_index.bin")
+"""
