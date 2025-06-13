@@ -1,10 +1,11 @@
-from cities import Registro, REGISTER_FORMAT, RECORD_SIZE
+from cities import Registro, REGISTER_FORMAT, RECORD_SIZE #cambiar por "from registro" si se quiere utilizar Registro(id,pos)
 from struct import pack, unpack, calcsize
 import os
 import csv
 
-fb = 2  # Factor de balanceo, cantidad maxima de elementos en un bucket
-D = 2   # Profundidad global maxima
+# El testcase es con fb=2, D=2 para ver los split, overflow, reconstrucción, etc
+fb = 6  # Factor de balanceo, cantidad maxima de elementos en un bucket
+D = 10   # Profundidad global maxima
 
 BUCKET_HEADER_FORMAT = 'iiii'
 BUCKET_HEADER_SIZE = calcsize(BUCKET_HEADER_FORMAT)
@@ -20,7 +21,7 @@ EMPTY_THRESHOLD = 0.4
 """
 Estructura: Reservo fb espacios por buckets, almaceno la cantidad de elementos reales. 
 Bucket 0, d=1, next=-1, size=0
-| 0
+| 2
 |
 |
 Bucket 1, d=1, next=-1, size=2
@@ -40,7 +41,7 @@ class Bucket:
     def print_bucket(self): #Imprime el header y los registros no vacíos de un bucket
         print(f"Bucket {self.bucket_id} d={self.d} next={self.next} size={self.size}")
         for reg in self.items:
-            #if reg.id != 0 and reg.country_id != 0: # Saltar registros en blanco (borrados o vacios)
+            #if reg.id != 0: # Saltar registros en blanco (borrados o vacios)
             reg.print_reg()
 
 """
@@ -116,7 +117,7 @@ class HashIndex:
             
             reg = Registro.from_bytes(data) # Desempaqueto y creo un objeto registro con el contenido}
             
-            if reg.id != 0 and reg.country_id != 0: # Saltar registros en blanco (borrados o vacios)
+            if reg.id != 0: # Saltar registros en blanco (borrados o vacios)
                 bucket_items.append(reg)
 
         return bucket_items
@@ -141,7 +142,7 @@ class HashIndex:
             data = bucket_file.read(RECORD_SIZE)
             temp = Registro.from_bytes(data)
 
-            if temp.id == 0 and temp.country_id == 0:  # Espacio vacío
+            if temp.id == 0:  # Espacio vacío
                 bucket_file.seek(pos)
                 bucket_file.write(pack(REGISTER_FORMAT, *reg.to_fields()))
 
@@ -153,7 +154,13 @@ class HashIndex:
         return False # bucket lleno
 
 
-    def insert(self, reg):  
+    def insert(self, key, pos=0):  # recibe registro o llave y posición
+
+        if pos != 0:    # caso estoy pasando (id, pos)
+            reg = Registro(key, pos)
+        else:           # caso estoy pasando un registro tal cual
+            reg = key
+            
         to_insert = [reg]  
         with open(self.buckets_filename, "r+b") as bucket_file:
             while to_insert: # Split con recursión generaba problemas, while mejor
@@ -256,40 +263,37 @@ class HashIndex:
                     data = bucket_file.read(RECORD_SIZE)
 
                     if not data: 
-                        return None, None, None# No se encontró el registro
-                    
-                    id, name, state_id, state_code, state_name, country_id, country_code, country_name, latitude, longitude, wikiDataId = unpack(REGISTER_FORMAT, data)
+                        return None, None, None # No se encontró el registro
 
-                    reg = Registro( id,
-                                    name.decode(encoding='utf-8', errors='replace').strip(),
-                                    state_id,
-                                    state_code.decode().strip(),
-                                    state_name.decode().strip(),
-                                    country_id,
-                                    country_code.decode().strip(),
-                                    country_name.decode(encoding='utf-8', errors='replace').strip(),
-                                    latitude,
-                                    longitude,
-                                    wikiDataId.decode(encoding='utf-8', errors='replace').strip())
+                    # --- Decodificación genérica ---
+                    unpacked = unpack(REGISTER_FORMAT, data)
+                    decoded = []
+                    for val in unpacked:
+                        if isinstance(val, bytes):
+                            decoded.append(val.decode('utf-8', errors='replace').strip())
+                        else:
+                            decoded.append(val)
+                    reg = Registro(*decoded)
+                    # --------------------------------
 
                     if reg.id == key: 
-                        if reg.id==0 and reg.country_id==0:  # (Caso el key sea cero y el registro es vacío)
+                        if reg.id == 0:  # (Caso el key sea cero y el registro es vacío)
                             return None, None, None 
                         else:
                             # Retorno reg, posición del registro, número del bucket (para acceso directo en remove)
                             return reg, pos, bucket_number 
 
-                    
                 # Voy al siguiente bucket linkeado
                 bucket_file.seek(calcsize("ii") + bucket_number * BUCKET_SIZE) # Posición "next" del header del bucket
                 
-                next_bucket = unpack('i', bucket_file.read(calcsize('i')))[0] #Tomo solo el primer valor de la tupla, valor de next
+                next_bucket = unpack('i', bucket_file.read(calcsize('i')))[0] # Tomo solo el primer valor de la tupla, valor de next
 
                 if next_bucket == -1: 
                     print(f"No existe registro con id {key}")
                     return None, None, None
                 else: 
-                    bucket_number = next_bucket # Voy al siguiente bucket par iterar sobre ello
+                    bucket_number = next_bucket # Voy al siguiente bucket para iterar sobre ello
+
 
     def search(self, key): 
         return self.get_reg_attributes(key)[0] # retorna registro, realizo el search en otra función 
