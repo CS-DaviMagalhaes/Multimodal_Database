@@ -1,6 +1,5 @@
 import struct
 import os
-import struct
 
 class Registro:
     def __init__(self, tabla, columnas):
@@ -87,3 +86,30 @@ class Registro:
                 registros.append(fila)
         return registros
 
+    def to_fields(self):
+        values = [i for i in vars(self).values()]
+
+        for i in values:
+            if isinstance(i, str):
+                i = i.encode()
+        
+        return (i for i in values)
+
+    def pack(self):
+        return struct.pack(
+            self.format_str,
+            *self.to_fields()
+        )
+
+    @classmethod
+    def unpack(cls, byte_data):
+        unpacked = struct.unpack(Registro.format_str, byte_data)
+        
+        for i in unpacked:
+            if isinstance(i, str):
+                i = i.decode().strip()
+        
+        return cls(i for i in unpacked)
+
+    def get_format(self):
+        return self.format_str
