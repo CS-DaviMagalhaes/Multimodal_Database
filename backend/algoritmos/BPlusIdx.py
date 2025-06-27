@@ -378,7 +378,7 @@ class BPlusIndex:
                 file.close()
         def load(self):
             print("CARGANDO TODOS LOS REGISTROS")
-            print("Nombre del archivo:",filename,"Cantidad de key por nodo:",self.m)
+            print("Nombre del archivo:",self.filename,"Cantidad de key por nodo:",self.m)
             print("Tipo de key:",self.tipo)
             with open(self.filename, "rb") as file:
                 ###[POSROOT,POSLIBRE,POSELIMINADO]

@@ -229,7 +229,7 @@ class RTreeFile:
 
         return registros
 
-    def add(self, registro):
+    def add(self, registro, dumm):
         pos = self.free_list.pop()
         with open(self.filename, 'r+b') as file:
             if pos is not None:

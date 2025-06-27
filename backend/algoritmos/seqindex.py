@@ -70,7 +70,7 @@ class SequentialFile:
         
         open(self.aux_filename, 'wb').close()
 
-    def add(self, registro):
+    def add(self, registro, dumm): # Para acomodar
         with open(self.aux_filename, 'ab') as aux_file:
             aux_file.write(registro.pack())
         
@@ -173,7 +173,7 @@ class SequentialFile:
 
         return matches if matches else None
 
-    def range_search(self, begin_key, end_key):
+    def rangeSearch(self, begin_key, end_key):
         matches = []
         count = self._read_header()
         pos = self._lower_bound(begin_key)

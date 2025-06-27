@@ -57,11 +57,9 @@ async def recibir_query(data: dict):
             if algoritmo == "BPLUS":
                 from algoritmos.BPlusIdx import BPlusIndex as Index
             elif algoritmo == "SEQUENTIAL":
-                return {"error": f"Algoritmo de índice '{algoritmo}' no soportado"}
-                #from indice_secuencial import SequentialIndex as Index
-            elif algoritmo == "AVL":
-                return {"error": f"Algoritmo de índice '{algoritmo}' no soportado"}
-                #from indice_avl import AVLIndex as Index
+                from algoritmos.seqindex import SequentialFile as Index
+            elif algoritmo == "RTREE":
+                from algoritmos.rtreeidx import RTreeFile as Index
             else:
                 return {"error": f"Algoritmo de índice '{algoritmo}' no soportado"}
         except ImportError:
@@ -147,15 +145,15 @@ async def recibir_query(data: dict):
                         # Detectar algoritmo por ahora solo con BPLUS
                         if "BPLUS" in index_file.upper():
                             from algoritmos.BPlusIdx import BPlusIndex as Index
-                        elif "AVL" in index_file.upper():
-                            from algoritmos.AVLIdx import AVLIndex as Index
+                        elif "RTREE" in index_file.upper():
+                            from algoritmos.rtreeidx import RTreeFile as Index
                         elif "SEQUENTIAL" in index_file.upper():
-                            from algoritmos.SequentialIdx import SequentialIndex as Index
+                            from algoritmos.seqindex import SequentialFile as Index
                         else:
                             continue  # algoritmo no soportado aún
 
                         index = Index(index_file)
-                        index.insert(valores[i], pos_nueva)
+                        index.add(valores[i], pos_nueva)
                     except Exception as e:
                         print(f"No se pudo actualizar índice {index_file}: {e}")
 
@@ -171,6 +169,9 @@ async def recibir_query(data: dict):
         range_min = None
         range_max = None
         is_between = False
+        knn = False
+        box_query = False
+        rad_query = False
         # Obtener tabla
         tabla = extraer_tabla_from_select(raw_query)
         if not tabla:
@@ -233,7 +234,14 @@ async def recibir_query(data: dict):
             try:
                 # Detectar algoritmo automáticamente
                 # Aqui puedes agregar mas algoritmos segun el sufijo si deseas
-                from algoritmos.BPlusIdx import BPlusIndex as Index
+                if "BPLUS" in index_file.upper():
+                    from algoritmos.BPlusIdx import BPlusIndex as Index
+                elif "SEQUENTIAL" in index_file.upper():
+                    from algoritmos.seqindex import SequentialFile as Index
+                elif "RTREE" in index_file.upper():
+                    from algoritmos.rtreeidx import RTreeFile as Index
+                else:
+                    pass # CORREGIR
                 print(f"Intentando abrir índice: {index_file}")
 
                 index = Index(index_file)
