@@ -19,6 +19,12 @@ backend/.env
 backend/*.sqlite3
 backend/*.log
 
+# Ignorar archivos pesados generados
+Image_descriptors/descriptors.npz
+Image_descriptors/kmeans_model.pkl
+Image_descriptors/pca_model.pkl
+Image_descriptors/tfidf_data.npz
+
 # === GLOBAL ===
 *.log
 .DS_Store
