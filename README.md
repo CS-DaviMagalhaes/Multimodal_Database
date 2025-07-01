@@ -1,12 +1,37 @@
-# Multimodal_Database
-
+# Multimodal Database
 Sistema de Base de Datos Multimodal con Indexación Avanzada
 
-## 🧠 Backend (FastAPI)
+## Índice
+
+- [Backend](#backend-fastapi)
+- [Frontend](#frontend-react)
+- [Parte 1](#parte-1)
+  - [Dataset](#dataset)
+  - [Extendible Hashing](#extendible-hashing)
+  - [ISAM](#isam)
+  - [Sequential File](#sequential-file)
+  - [RTree](#rtree)
+  - [B+ Index](#b-index)
+- [Parte 2](#parte-2)
+  - [Image Search](#image-search)
+    - [Dataset](#dataset-1)
+    - [Estrategias](#estrategias-utilizadas)
+    - [Experimentación](#experimentación)
+  - [Music Search](#music-search)
+    - [Dataset](#dataset-2)
+    - [Estrategias](#estrategias-utilizadas-1)
+    - [Experimentación](#experimentación-1)
+
+
+
+---
+# Parte 1
+
+## Backend (FastAPI)
 
 Este backend simula un sistema de base de datos que interpreta consultas SQL básicas (`CREATE TABLE`, `INSERT`, `SELECT`, `CREATE INDEX`) y las ejecuta sobre archivos binarios. Usa una estructura de almacenamiento personalizada junto con algoritmos de índices como B+ Tree, con soporte planificado para AVL y secuencial.
 
-### 🔧 Funcionalidades implementadas:
+### Funcionalidades implementadas:
 
 - **CREATE TABLE**: 
   - Guarda la estructura de la tabla en un archivo `.meta` dentro de `/tablas/`.
@@ -46,7 +71,7 @@ Este backend simula un sistema de base de datos que interpreta consultas SQL bá
 
 ---
 
-## 🖥️ Frontend (React)
+## Frontend (React)
 
 Este frontend es una interfaz web simple para interactuar con el backend simulando una consola SQL. Permite enviar consultas manuales y visualizar resultados en tiempo real.
 
@@ -76,11 +101,6 @@ Este frontend es una interfaz web simple para interactuar con el backend simulan
 ---
 
 
-
-
-
-
-
 ## Dataset
 Utilizamos el dataset `cities` que tiene `148061` registros con los siguientes atributos: 
 - `id`: id de la ciudad
@@ -103,7 +123,7 @@ Extendible Hashing que mantiene el índice en RAM y los buckets en disco, permit
 
 ### Estrategias utilizadas en la implementación
 
-### Estructura general
+#### Estructura general
 Mientras estamos trabajando sobre el archivo del índice lo almacenamos en RAM para poder hacer operaciones de forma más eficiente. Cada cambio hecho al
 índice en RAM también se hace al archivo del índice, así podemos tenerlo en disco y abrirlo nuevamente después. Por ejemplo el índice para 1 millón de
 datos con `32768` entradas pesa menos de `1MB`.
@@ -119,19 +139,19 @@ Los buckets se construyen sobre el mismo archivo `data.bin`. Para cada bucket te
 
 Reservamos fb registros para cada bucket. Simplemente esos registros son el constructor por defecto `Registro()`, representando un registro vacío. Cada vez que se inserta sobreescribimos esos registros y actualizamos el size del bucket, la cantidad de registros no vacíos.
 
-### Search
+#### Search
 Se implementó la función `get_reg_attributes()` que la búsqueda de un elemento en los buckets principales y overflow. Retorna el registro encontrado en
 la búsqueda (si existe), la posición del registro y el número del bucket. Así podemos simplemente reutilizar esta función en `search()` y `remove()`. El 
 registro encontrado lo usamos en la búsqueda y los otros dos valores del retorno usamos en el método de borrado para poder acceder directamente al registro
 y bucket asociado. Así evitamos repetir código.
 
-### Remove y reconstrucción
+#### Remove y reconstrucción
 La estratégia de borrado que utilizamos es la siguiente: 
 - Simplemente reemplazamos el registro que queremos borrar por un "registro vacío" (constructor por defecto de `Registro()`).
 - Contamos la cantidad de buckets vacíos (sin registros reales).
 - Si la cantidad de buckets vacíos sobrepasa a los 40% hacemos una reconstrucción total del índice y de los buckets.
 
-### Insert
+#### Insert
 Aplicamos hash al id numerico de los registros. Simplemente se inserta en el primer espacio vacío que se encuentra del bucket correspondiente a ese hash. 
 Así reutilizamos los espacios que fueron borrados en remove. Si la profundidad local del bucket es menor a la profundidad global hacemos split en caso el
 bucket esté lleno. En caso ya no se pueda hacer split creamos buckets de overflow y los encadenamos.
@@ -152,18 +172,18 @@ en la cantidad de datos. Así logramos tener tiempos eficientes para inserción,
 Con estos parámetros obtuvimos la siguiente cantidad de buckets y entradas en el índice: 
 ![Cantidad de buckets vs entradas índice](./imgs/num_buckets_and_entries.png)
 
-### Insert
+#### Insert
 Hicimos la inserción de acuerdo a los valores de `fb` y `D` en la tabla de arriba:
 
 ![Insert](./imgs/insert_hash.png)
 
 
-### Search
+#### Search
 Hicimos la búsqueda de 100 keys aleatorios del dataset y sacamos el promedio: 
 
 ![Insert](./imgs/search_hash.png)
 
-### Remove
+#### Remove
 Hicimos el borrado de 100 keys aleatorios del dataset y sacamos el promedio: 
 
 ![Remove](./imgs/remove_hash.png)
@@ -335,6 +355,13 @@ Se aplicó un ```remove()``` a 100 elementos aleatorios, promediando el tiempo f
 
 ---
 
+## Comparación entre estructuras
+Realizamos una comparación entre las estructuras utilizadas:
+
+*insertar grafico*
+
+---
+
 ## B+ Index
 Con el objetivo de mejorar la eficiencia en las búsquedas sobre archivos de datos, se implementó un índice basado en un árbol B+ no agrupado (unclustered). Esta estructura permite mantener las claves ordenadas y enlazadas en nodos hoja, mientras que los datos reales se almacenan en un archivo separado. Las hojas contienen punteros a la posición física del registro en el archivo de datos.
 
@@ -382,3 +409,71 @@ m = 25: Tiempo de inserción = 31 segundos, Tamaño del archivo = 2.8 MB
 m = 100: Tiempo de inserción = 28 segundos, Tamaño del archivo = 2.6 MB
 
 Como se puede observar, aumentar el valor de m mejora tanto el tiempo de inserción como el uso de espacio, debido a que se reducen las divisiones de nodos y se mejora la compactación del árbol. Esto confirma que una mayor capacidad de fan-out en los nodos del B+ Tree puede resultar beneficiosa para datasets de tamaño considerable.
+
+---
+
+# Parte 2
+
+## Image Search
+Implementamos la búsqueda de imagenes por similitud, con indexación de descriptores locales.
+
+### Dataset
+Utilizamos el dataset [*Fashion Products Small*](https://www.kaggle.com/datasets/paramaggarwal/fashion-product-images-small) que consiste de 45k fotos de articulos de moda (ropa, accesorios, etc). Este dataset es la versión más ligera del dataset [*Fashion Product Images Dataset*](https://www.kaggle.com/datasets/paramaggarwal/fashion-product-images-dataset/data). Las imagenes son de menor resolución, para ahorrar espacio y obtener mayor rapidez en la extracción de features.
+
+### Estrategias Utilizadas
+Utilizamos SIFT para la extracción de características, el cual extrae un vector de descriptores que tiene 128 dimensiones. Utilizamos PCA para reducir la dimensionalidad a 70 dimensiones, capturando el 95% de la varianza de los datos. Hicimos un análisis de la cantidad de componentes y las varianzas acumuladas:
+
+![pca analysis](./imgs/pca_analysis.png)
+
+Luego aplicamos *KMeans* para agrupar los descriptores en clusters. Intentamos utilizar los labels que contiene la columna ```articleType``` en el archivo ```styles.csv``` para poder realizar un análisis de precisión variando la cantidad de clusters para KMeans entre 10 y 500 clusters. Sin embargo este análisis resulto inefectivo ya que no consideró completamente la similitud visual de los items. Salieron mejores precisiones con 400+ clusters pero visualmente no era  así, ya que obtuvimos más similitud visual con la query utilizando menos clusters. Es por ello que hicimos un análisis visual para elegir la cantidad de clusters:
+
+![Kmeans Cluster Analysis](./imgs/kmeans_cluster_analysis.png)
+
+El siguiente paso fue construir histogramas para luego aplicar TF-IDF como técnica de ponderación para cada visual word. En base a eso pudimos aplicar KNN secuencial y KNN con indexación invertida para obtener las Top-k imagenes más similares a una query en base a la similitud coseno.
+
+Utilizamos ```heapq``` para las funciones de KNN para mayor eficiencia, de modo que siempre mantenemos los Top-k resultados más similares en el heap y hacemos pop al menos similar en cada iteración. Es por eso que no pusheamos valores negativos al heap.
+
+### Experimentación
+Utilizando K = 8 y 5 ejecuciones para poder calcular el tiempo promedio. Tiempos en segundos.
+
+|    N    | KNN Secuencial |  KNN Indexado  | KNN PostgreSQL |
+|---------|----------------|----------------|----------------|
+|  1000   |      0.0446    |     0.0009     |      0.0018    |
+|  2000   |      0.0981    |     0.0018     |      0.0022    |
+|  4000   |      0.2029    |     0.004      |      0.0037    |
+|  8000   |      0.3573    |     0.0099     |      0.0058    |
+|  16000  |      0.9109    |     0.0186     |      0.084     |
+|  32000  |      1.538     |     0.0418     |      0.0902    |
+|  64000  |      2.9061    |     0.0875     |      0.1231    |
+
+![Tiempos knn imagenes](./imgs/knn_comparison_images.png)
+
+---
+
+## Music Search
+Implementación de búsqueda de canciones por similitud.
+
+### Dataset
+Utilizamos el dataset de *[Music Bench](https://huggingface.co/datasets/amaai-lab/MusicBench/tree/main)* que contiene fragmentos de canciones y grabaciones de música de aproximadamente 10 segundos. Específicamente, usamos la versión ligera *[FMACaps](https://huggingface.co/datasets/amaai-lab/MusicBench/blob/main/FMACaps_eval_set.tar.gz)* que contiene 1000 archivos ```.wav```.
+
+### Estrategias Utilizadas
+Utilizamos **MFCC** (*Mel-Frequency Cepstral Coefficients*) para la extracción de descriptores de audio, que comprime frecuencias altas y da más resolución a las bajas, procesando el audio por ventanas de tiempo.
+
+Las demás funciones utilizadas son prácticamente las mismas que utilizamos para image search. Solo que aqui ya no utilizamos PCA y también cambiamos el número de clusters para KMeans.
+
+### Experimentación
+Utilizando K = 8 y 5 ejecuciones para poder calcular el tiempo de ejecución promedio. Tiempos en segundos.
+
+|    N    | KNN Secuencial |  KNN Indexado  | KNN PostgreSQL |
+|---------|----------------|----------------|----------------|
+|  1000   |    0.0356      |     0.0012     |     0.0023     |
+|  2000   |    0.0631      |     0.002      |     0.0017     |
+|  4000   |    0.1446      |     0.0037     |     0.0028     |
+|  8000   |    0.275       |     0.007      |     0.0047     |
+|  16000  |    0.49        |     0.0146     |     0.0068     |
+|  32000  |    0.9849      |     0.03       |     0.1269     |
+|  64000  |    2.0744      |     0.0767     |     0.1293     |
+
+![Knn comparison audio](./imgs/knn_comparison_audio.png)
+
+---
