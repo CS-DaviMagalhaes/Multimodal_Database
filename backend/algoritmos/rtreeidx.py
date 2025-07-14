@@ -1,11 +1,9 @@
 import struct
 import os
-from registro import Registro
 from rtree import index
 
 """
 Contiene las clases necesarias para el indice RTREE.
-Para usarlo, importar la clase RTreeFile.
 IMPORTANTE: para que sirva, la clase debe contener las columnas:
 - longitude : entero
 - latitude  : entero
@@ -22,7 +20,7 @@ class RTreeMetadata:
     Archivo de metadata para el RTree. Manejado con un free list, mantiene 
     el id, posicion y coordenadas de cada registro dentro del RTree.
     """
-    FORMAT = 'i i f f i' # key, pos, lon, lat, free
+    FORMAT = 'i f f i' # key, pos, lon, lat, free
     SIZE = struct.calcsize(FORMAT)
     HEADER_FORMAT = 'i'
     HEADER_SIZE = struct.calcsize(HEADER_FORMAT)
@@ -43,11 +41,11 @@ class RTreeMetadata:
             file.seek(0)
             file.write(struct.pack(self.HEADER_FORMAT, head))
     
-    def add(self, key, pos, lon, lat):
+    def add(self, pos, lon, lat):
         head = self.read_header()
         if head == -1:
             with open(self.filename, 'ab') as file:
-                entry = struct.pack(self.FORMAT, key, pos, lon, lat, -1)
+                entry = struct.pack(self.FORMAT, pos, lon, lat, -1)
                 file.write(entry)
         else:
             with open(self.filename, 'r+b') as file:
@@ -55,36 +53,46 @@ class RTreeMetadata:
                 file.seek(entry_offset)
                 _, _, _, _, next_free = struct.unpack(self.FORMAT, file.read(self.SIZE))
                 file.seek(entry_offset)
-                file.write(struct.pack(self.FORMAT, key, pos, lon, lat, -1))
+                file.write(struct.pack(self.FORMAT, pos, lon, lat, -1))
                 self.write_header(next_free)
     
     def get(self, pos):
-        offset = self.HEADER_SIZE + pos * self.SIZE 
         with open(self.filename, 'rb') as file:
-            file.seek(offset)
-            bytes_read = file.read(self.SIZE)
+            file.seek(self.HEADER_SIZE)
+            current_pos = 0
+            while True:
+                bytes_read = file.read(self.SIZE)
+                if not bytes_read or len(bytes_read) < self.SIZE:
+                    break
+                
+                unpacked = struct.unpack(self.FORMAT, bytes_read)
+                stored_pos = unpacked[0]
+                
+                if stored_pos == -1:
+                    current_pos += 1
+                    continue
 
-            if not bytes_read or len(bytes_read) < self.SIZE:
-                return None
-            
-            unpacked = struct.unpack(self.FORMAT, bytes_read)
-            if unpacked[0] == -1:
-                return None
+                if stored_pos == pos:
+                    return {
+                        'record_pos': unpacked[0],
+                        'longitud': unpacked[1],
+                        'latitud': unpacked[2],
+                        'offset_in_meta_file': self.HEADER_SIZE + current_pos * self.SIZE
+                    }
+                current_pos += 1
+        return None
 
-            return {
-                'key': unpacked[0],
-                'pos': unpacked[1],
-                'lon': unpacked[2],
-                'lat': unpacked[3],
-                'offset': offset
-            }
+    def erase(self, pos):
+        entry = self.get(pos)
+        if not entry:
+            print(f"WARNING: No hay registro en la posicion {pos} dentro del indice RTree.")
+            return
 
-    def erase(self, entry):
         offset = entry['offset']
         free_head = self.read_header()
         with open(self.filename, 'r+b') as file:
             file.seek(offset)
-            file.write(struct.pack(self.FORMAT, -1, -1, 0.0, 0.0, free_head))
+            file.write(struct.pack(self.FORMAT, -1, 0.0, 0.0, free_head))
         self.write_header((offset - self.HEADER_SIZE) // self.SIZE)
 
 # INDEX CLASS
@@ -100,17 +108,17 @@ class RTreeIndex:
         p.dimension = 2
         p.overwrite = False
 
-        self.rtree_idx = index.Index(index_name, properties=p)
-        self.meta_file = RTreeMetadata(index_name + ".meta.dat")
+        self.rtree_idx = index.Index(index_name + ".rtree", properties=p)
+        self.meta_file = RTreeMetadata(index_name + ".rtree.meta")
 
-    def add(self, reg, reg_pos: int):
+    def add(self, lon, lat, pos):
         """
-        Insertamos un record al árbol. Asumimos que la data
-        viene enpaquetada antes de insertar al RTree.
+        Insertamos un record al árbol.
+        Pasamos las coordenadas (lon, lat) y su pos.
         """
-        point = (reg.longitude, reg.latitude, reg.longitude, reg.latitude)
-        self.rtree_idx.insert(reg_pos, point)
-        self.meta_file.add(reg.id, reg_pos, reg.longitude, reg.latitude)
+        point = (lon, lat, lon, lat)
+        self.rtree_idx.insert(pos, point)
+        self.meta_file.add(pos, lon, lat)
 
     def box_search(self, lower_coords, upper_coords):
         """
@@ -121,7 +129,7 @@ class RTreeIndex:
         max_lon, max_lat = upper_coords
         query = (min_lon, min_lat, max_lon, max_lat)
         matches = list(self.rtree_idx.intersection(query))
-        return matches
+        return matches if matches else None
 
     def radius_search(self, coords, radius):
         """
@@ -140,12 +148,12 @@ class RTreeIndex:
         for pos in matches:
             e = self.meta_file.get(pos)
             if e:
-                dx, dy = e['lon'] - cx, e['lat'] - cy
+                dx, dy = e['longitud'] - cx, e['latitud'] - cy
                 dist = (dx*dx + dy*dy)**0.5
                 if dist <= radius:
                     results.append(e['pos'])
         
-        return results
+        return results if results else None
 
     def knn_search(self, coords, k):
         """
@@ -155,7 +163,15 @@ class RTreeIndex:
         cx, cy = coords
         point = (cx, cy, cx, cy)
         neighbours = list(self.rtree_idx.nearest(point, num_results=k))
-        return neighbours[:k]
+
+        vecinitos = []
+        for pos in neighbours:
+            if self.meta_file.get(pos):
+                vecinitos.append(pos)
+            if len(vecinitos) == k:
+                break
+
+        return vecinitos if vecinitos else None
 
     def erase(self, pos):
         """
@@ -163,122 +179,11 @@ class RTreeIndex:
         Pasamos una posicion en especifico
         """
         entry = self.meta_file.get(pos)
-        lon, lat = entry['lon'], entry['lat']
+        if not entry:
+            print(f"WARNING: No hay registro en la posicion {pos} dentro del indice RTree.")
+            return
+
+        lon, lat = entry['longitud'], entry['latitud']
         point = (lon, lat, lon, lat)
         self.rtree_idx.delete(pos, point)
-        self.meta_file.erase(entry)
-
-# Manejar borrados
-class FreeList:
-    FORMAT = 'i'
-    SIZE = struct.calcsize(FORMAT)
-
-    def __init__(self, filename):
-        self.filename = filename
-        if not os.path.exists(self.filename):
-            with open(self.filename, 'wb'):
-                pass
-    
-    def get_all(self):
-        with open(self.filename, 'rb') as f:
-            data = f.read()
-            return [pos[0] for pos in struct.iter_unpack(self.FORMAT, data)]
-    
-    def add(self, pos):
-        with open(self.filename, 'ab') as f:
-            f.write(struct.pack(self.FORMAT, pos))
-    
-    def pop(self):
-        positions = self.get_all()
-        if not positions: 
-            return None
-        pos = positions.pop(0)
-        
-        with open(self.filename, 'wb') as f:
-            for p in positions:
-                f.write(struct.pack(self.FORMAT, p))
-            
-        return pos
-
-# MAIN CLASS
-class RTreeFile:
-    REG_FORMAT = Registro.get_format()
-    REG_SIZE = struct.calcsize(REG_FORMAT)
-
-    def __init__(self, filename):
-        self.filename = filename + ".dat"
-        self.free_list = FreeList(filename + ".free.dat")
-        self.index = RTreeIndex(index_name=filename + ".rtree")
-
-        if not os.path.exists(self.filename):
-            with open(self.filename, 'wb') as file:
-                pass
-
-    def load(self):
-        free_positions = set(self.free_list.get_all())
-        registros = []
-        with open(self.filename, 'rb') as file:
-            pos = 0
-            while True:
-                data = file.read(self.REG_SIZE)
-                if not data or len(data) < self.REG_SIZE:
-                    break
-                if pos not in free_positions:
-                    registros.append((pos, Registro.from_bytes(data)))
-                pos += 1
-
-        return registros
-
-    def add(self, registro, dumm):
-        pos = self.free_list.pop()
-        with open(self.filename, 'r+b') as file:
-            if pos is not None:
-                file.seek(pos * self.REG_SIZE)
-            else:
-                file.seek(0, os.SEEK_END)
-                pos = file.tell() // self.REG_SIZE
-            file.write(registro.pack())
-        
-        self.index.add(registro, pos)    
-        return pos
-
-    def read(self, pos):
-        if pos in self.free_list.get_all():
-            return None
-        with open(self.filename, 'rb') as file:
-            file.seek(pos * self.REG_SIZE)
-            data = file.read(self.REG_SIZE)
-            if not data or len(data) < self.REG_SIZE:
-                return None
-            return Registro.from_bytes(data)
-
-    def box_search(self, lower_coords, upper_coords):
-        matches = self.index.box_search(lower_coords, upper_coords)
-
-        if not matches:
-            return None
-
-        registros = [self.read(match) for match in matches]            
-        return registros
-
-    def radius_search(self, coords, radius):
-        matches = self.index.radius_search(coords, radius)
-
-        if not matches:
-            return None
-
-        registros = [self.read(match) for match in matches]
-        return registros
-
-    def knn_search(self, coords, k):
-        matches = self.index.knn_search(coords, k)
-
-        if not matches:
-            return None
-
-        registros = [self.read(match) for match in matches]
-        return registros
-
-    def remove(self, pos):
-        self.index.erase(pos)
-        self.free_list.add(pos)
+        self.meta_file.erase(pos)
