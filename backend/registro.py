@@ -7,6 +7,7 @@ class Registro:
         self.columnas = columnas
         self.format_str = self._generar_format()
         self.filename = os.path.join("tablas", f"{tabla}.tbl")
+        self.record_size = struct.calcsize(self.format_str)
 
     def _generar_format(self):
         formato = ""
@@ -70,46 +71,19 @@ class Registro:
                 registros.append(fila)
         return registros
 
-        registros = []
-        struct_size = struct.calcsize(self.format_str)
-
-        with open(f"{self.tabla}.tbl", "rb") as f:
-            while chunk := f.read(struct_size):
-                unpacked = struct.unpack(self.format_str, chunk)
-                fila = []
-                for i, col in enumerate(self.columnas):
-                    if col["tipo"].startswith("varchar"):
-                        val = unpacked[i].decode("utf-8").strip()
-                    else:
-                        val = unpacked[i]
-                    fila.append(val)
-                registros.append(fila)
-        return registros
-
-    def to_fields(self):
-        values = [i for i in vars(self).values()]
-
-        for i in values:
-            if isinstance(i, str):
-                i = i.encode()
-        
-        return (i for i in values)
-
-    def pack(self):
-        return struct.pack(
-            self.format_str,
-            *self.to_fields()
-        )
-
     @classmethod
-    def unpack(cls, byte_data):
-        unpacked = struct.unpack(Registro.format_str, byte_data)
-        
-        for i in unpacked:
-            if isinstance(i, str):
-                i = i.decode().strip()
-        
-        return cls(i for i in unpacked)
-
-    def get_format(self):
-        return self.format_str
+    def get_format(cls, columnas=None):
+        if columnas is None:
+            raise ValueError("No se pasaron columnas.")
+    
+        formato = ""
+        for col in columnas:
+            tipo = col["tipo"].lower()
+            if tipo == "int":
+                formato += "i"
+            elif tipo.startswith("varchar"):
+                tam = int(tipo[tipo.find("(")+1:tipo.find(")")])
+                formato += f"{tam}s"
+            else:
+                raise ValueError(f"Tipo no soportado: {tipo}")
+        return formato
