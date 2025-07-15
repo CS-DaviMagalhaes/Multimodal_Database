@@ -424,7 +424,7 @@ Utilizamos el dataset [*Legal Citation Text Classification*](https://www.kaggle.
 
 Construimos un sistema de recuperación de información textual a partir de un dataset con columnas: `case_id`, `case_outcome`, `case_title`, y `case_text`. Los textos fueron preprocesados y luego indexados utilizando un enfoque optimizado del algoritmo **SPIMI (Single-Pass In-Memory Indexing)** para permitir escalabilidad y eficiencia en almacenamiento y consulta.
 
-#### 🔧 Preprocesamiento
+#### Preprocesamiento
 Se combinaron los campos textuales por fila y se aplicó la siguiente pipeline:
 
 - **Tokenización** de palabras
