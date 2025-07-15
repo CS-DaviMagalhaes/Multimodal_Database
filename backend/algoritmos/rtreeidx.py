@@ -151,7 +151,7 @@ class RTreeIndex:
                 dx, dy = e['longitud'] - cx, e['latitud'] - cy
                 dist = (dx*dx + dy*dy)**0.5
                 if dist <= radius:
-                    results.append(e['pos'])
+                    results.append(e['record_pos'])
         
         return results if results else None
 

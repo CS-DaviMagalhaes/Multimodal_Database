@@ -205,7 +205,7 @@ class DBManager:
         if algoritmo == "RTREE":
             rtree_cols_check = [c.strip().lower() for c in nombre_columnas_idx.split(',')]
 
-            if len(nombre_columnas_idx) != 2 or \
+            if len(rtree_cols_check) != 2 or \
                'longitud' not in [c.lower() for c in rtree_cols_check] or \
                'latitud' not in [c.lower() for c in rtree_cols_check]:
                 return {"error": "RTREE requiere columnas 'longitud' y 'latitud'."}
