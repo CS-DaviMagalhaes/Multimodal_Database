@@ -64,7 +64,7 @@ class DBManager:
                     raise ValueError(f"No hay columna '{nombre_columnas_key}' para el Sequential.")
                 
                 col_tipo = col_info['tipo']
-                idx_instance = SequentialFile(filename=idx_filename, key_attr=nombre_columnas_key, key_type=col_tipo)
+                idx_instance = SequentialFile(filename=idx_filename, key_attr=nombre_columnas_key, key_type=col_tipo.lower())
 
             elif algoritmo == "RTREE":
                 idx_filename = os.path.join("indices", f"{nombre_tabla}")
