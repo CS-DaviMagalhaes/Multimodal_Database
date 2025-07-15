@@ -8,6 +8,7 @@ from algoritmos.BPlusIdx import BPlusIndex
 from algoritmos.RTreeIdx import RTreeIndex
 from algoritmos.SeqIdx import SequentialFile
 from algoritmos.IsamIdx import ISAMIndex
+from algoritmos.ExtendHashIdx import ExtendibleHashIndex
 
 from funciones import *
 
@@ -79,6 +80,16 @@ class DBManager:
                     
                 idx_instance = ISAMIndex(filename=idx_filename)
 
+            elif algoritmo == "EH":
+                idx_filename = os.path.join("indices", f"{nombre_tabla}_{nombre_columnas_key}")
+                col_info = next((c for c in schema["columnas"] if c["nombre"].lower() == nombre_columnas_key.lower()), None)
+
+                if not col_info:
+                    raise ValueError(f"No hay columna '{nombre_columnas_key}' para Extendible Hashing.")
+                
+                col_tipo = col_info['tipo']
+                idx_instance = ExtendibleHashIndex(index_name=idx_filename, key_type=col_tipo.lower())
+
             elif algoritmo == "RTREE":
                 idx_filename = os.path.join("indices", f"{nombre_tabla}")
                 idx_instance = RTreeIndex(index_name=idx_filename)
@@ -96,7 +107,7 @@ class DBManager:
     def _get_all_indices_for_table(self, nombre_tabla):
         indices_encontrados = []
         for filename in os.listdir("indices"):
-            if filename.startswith(f"{nombre_tabla}_") and filename.endswith(".idx.meta"):
+            if filename.startswith(f"{nombre_tabla}_") and filename.endswith(".idx.meta") or filename.endswith(".eh.meta"):
                 idx_meta_path = os.path.join("indices", filename)
                 try:
                     with open(idx_meta_path, "r") as f:
@@ -318,7 +329,8 @@ class DBManager:
             except Exception as e:
                 print(f"WARNING: No se pudo agregar record en la posición {i} al índice {nombre_idx}. Error: {e}")
 
-        idx_meta_path = os.path.join("indices", f"{nombre_tabla}_{idx_columna_filename_part}.idx.meta")
+        meta_ext = ".eh.meta" if algoritmo == "EH" else ".idx.meta"
+        idx_meta_path = os.path.join("indices", f"{nombre_tabla}_{idx_columna_filename_part}{meta_ext}")
         idx_metadata = {
             "nombre": nombre_idx,
             "tabla": nombre_tabla,
@@ -562,6 +574,25 @@ class DBManager:
                             except Exception as e:
                                 print(f"Error usando SEQUENTIAL: {e}. Fallbackeando.")
                                 posiciones = None # Fallback
+                    
+                    eh_idx_info = next((idx for idx in self._get_all_indices_for_table(nombre_tabla)
+                            if idx[1].lower() == actual_col_for_index.lower() and idx[2] == "EH"), None)
+                
+                    if eh_idx_info:
+                        eh_instance = self._get_index_instance(nombre_tabla, actual_col_for_index, "EH", schema)
+                    
+                        if eh_instance:
+                            try:
+                                if is_between:
+                                    posiciones = eh_instance.rangeSearch(range_min_typed, range_max_typed)
+                                else:
+                                    posiciones = eh_instance.search(search_val_typed)
+                                
+                                if posiciones is not None:
+                                    algoritmo = "EH"
+                                    print(f"Extendible Hashing usado para la query.")
+                            except Exception as e:
+                                print(f"Error usando EH: {e}. Fallbackeando.")
         
         # Full scan pipipipipi
         registro_manager = Registro(nombre_tabla, schema["columnas"])
