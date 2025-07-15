@@ -414,6 +414,70 @@ Como se puede observar, aumentar el valor de m mejora tanto el tiempo de inserci
 
 # Parte 2
 
+## Text Search
+Implementamos la busqueda de textos por similitud
+
+### Dataset
+Utilizamos el dataset [*Legal Citation Text Classification*](https://www.kaggle.com/datasets/shivamb/legal-citation-text-classification) que consiste en 24985 casos legales que cuentan con el resultado final, el titulo del caso y de que trataba.
+
+### Estrategias Utilizadas
+
+Construimos un sistema de recuperación de información textual a partir de un dataset con columnas: `case_id`, `case_outcome`, `case_title`, y `case_text`. Los textos fueron preprocesados y luego indexados utilizando un enfoque optimizado del algoritmo **SPIMI (Single-Pass In-Memory Indexing)** para permitir escalabilidad y eficiencia en almacenamiento y consulta.
+
+#### 🔧 Preprocesamiento
+Se combinaron los campos textuales por fila y se aplicó la siguiente pipeline:
+
+- **Tokenización** de palabras
+- **Eliminación de signos** y símbolos no alfabéticos
+- **Filtrado de stopwords** utilizando el corpus de NLTK
+- **Reducción mediante Stemming** usando `PorterStemmer`
+
+El resultado fue una lista normalizada de tokens para cada documento, lista para ser indexada.
+
+### Construcción del Índice Invertido
+
+Se utilizó una versión híbrida de SPIMI adaptada para escritura a disco por bloques, con el fin de evitar saturar la memoria RAM incluso en grandes colecciones de datos.
+
+- **Partición por bloques:** se procesaron documentos en bloques de 10,000 filas (`block_size=10000`).
+- **Postings list por término:** para cada término en cada bloque, se almacenó la lista de `(doc_id, tf_weight)`.
+
+Cada bloque se guardó como un archivo `.pkl` independiente con la estructura:
+```python
+{ term1: [(doc_id, tf1), ...], term2: [...], ... }
+```
+También se guardaron:
+- La norma precomputada de cada documento en `norms.pkl`.
+- La frecuencia de documentos (`df`) por término en `df_counter.pkl`.
+
+tal que obtenemos la siguiente estructura en disco:
+```
+index_blocks/
+├── block_0.pkl
+├── block_1.pkl
+├── ...
+├── norms.pkl
+├── df_counter.pkl
+```
+### Consulta (Top-k por Similitud de Coseno)
+
+La búsqueda se diseñó para:
+- **Evitar cargar el índice completo en RAM.**
+- Acceder **solo a los bloques** que contienen postings de los términos consultados.
+
+Para cada término `t` de la consulta:
+1. Se calcula el peso TF-IDF del término en la query.
+2. Se itera sobre todos los bloques `block_i.pkl`:
+   - Se carga el bloque.
+   - Si el término `t` está presente, se actualizan los scores de los documentos usando:
+     \[
+     	ext{score}(q, d) = rac{\sum_{t} w_{tq} \cdot w_{td}}{\|q\| \cdot \|d\|}
+     \]
+3. Se normaliza con la norma de la consulta y la norma del documento precalculada.
+4. Se utiliza `heapq` para mantener solo el **Top-k documentos más similares**.
+
+Esta estrategia permite escalar a millones de documentos y vocabularios grandes sin comprometer la eficiencia ni el uso de memoria.
+
+---
 ## Image Search
 Implementamos la búsqueda de imagenes por similitud, con indexación de descriptores locales.
 
