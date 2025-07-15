@@ -87,7 +87,9 @@ class DBManager:
                 try:
                     with open(idx_meta_path, "r") as f:
                         idx_metadata = json.load(f)
-                        if all(k in idx_metadata for k in ["tabla", "columnas", "algorithm"]):
+                        required_keys = ["tabla", "columnas", "algoritmo"]
+                        all_keys_present = all(k in idx_metadata for k in required_keys)
+                        if all_keys_present:
                             columnas_key = idx_metadata["columnas"]
                             indices_encontrados.append((
                                 idx_metadata["tabla"],
@@ -198,32 +200,35 @@ class DBManager:
 
         tabla_columnas = schema["columnas"]
         col_info_list = []
-        nombre_columnas_idx = [c.strip() for c in nombre_columnas_idx.split(',')]
         idx_columna_filename_part = "" 
 
         if algoritmo == "RTREE":
+            rtree_cols_check = [c.strip().lower() for c in nombre_columnas_idx.split(',')]
+
             if len(nombre_columnas_idx) != 2 or \
-               'longitud' not in [c.lower() for c in nombre_columnas_idx] or \
-               'latitud' not in [c.lower() for c in nombre_columnas_idx]:
-                return {"error": "RTREE index requires exactly 'longitud' and 'latitud' columns."}
+               'longitud' not in [c.lower() for c in rtree_cols_check] or \
+               'latitud' not in [c.lower() for c in rtree_cols_check]:
+                return {"error": "RTREE requiere columnas 'longitud' y 'latitud'."}
             
             lon_col_info = next((c for c in tabla_columnas if c["nombre"].lower() == "longitud"), None)
             lat_col_info = next((c for c in tabla_columnas if c["nombre"].lower() == "latitud"), None)
             if not lon_col_info or not lat_col_info or \
                lon_col_info['tipo'].lower() != 'int' or lat_col_info['tipo'].lower() != 'int':
-                return {"error": "RTREE index columns 'longitud' and 'latitud' must be of type INT."}
+                return {"error": "RTREE requiere que 'longitud' y 'latitud' sean INT."}
             
             idx_columna_filename_part = "longitud,latitud"
         else:
-            if len(nombre_columnas_idx) != 1:
-                 return {"error": f"{algoritmo} index requires exactly one column."}
+            if len(nombre_columnas_idx.split(',')) != 1:
+                 return {"error": f"{algoritmo} requiere exactamente una sola columna."}
             
-            col_info = next((c for c in tabla_columnas if c["nombre"].lower() == nombre_columnas_idx[0].lower()), None)
+            single_columa_nombre = nombre_columnas_idx.strip()
+
+            col_info = next((c for c in tabla_columnas if c["nombre"].lower() == single_columa_nombre.lower()), None)
             if not col_info:
-                return {"error": f"Column '{nombre_columnas_idx[0]}' not found in table '{nombre_tabla}'."}
+                return {"error": f"No hay columna '{single_columa_nombre}' para tabla '{nombre_tabla}'."}
             col_info_list.append(col_info)
 
-            idx_columna_filename_part = nombre_columnas_idx[0]
+            idx_columna_filename_part = single_columa_nombre
         
         idx_instance = self._get_index_instance(nombre_tabla, idx_columna_filename_part, algoritmo, schema)
         if not idx_instance:
@@ -363,9 +368,10 @@ class DBManager:
                     knn_search_params = ((target_lon, target_lat), int(k_value))
                     where_col = "rtree_knn_search"
             elif "=" in where_part:
-                parts = where_part.split("=")
-                where_col = parts[0].strip()
-                where_val = parts[1].strip("'\"; ").strip()
+                parts = [p.strip() for p in where_part.split("=", 1)]
+                if len(parts) == 2:
+                    where_col = parts[0]
+                    where_val = parts[1].strip(" '\";")
 
         # 3. Para ejecuciones específicas
         result_data = None
@@ -406,14 +412,14 @@ class DBManager:
             "indice_usado": algoritmo_idx
         }
 
-    def _execute_basic_select(self, nombre_tabla, schema, columnas):
+    def _execute_basic_select(self, nombre_tabla, schema, columnas_disponibles):
         """
         Para un SELECT simple.
         """
         registro_manager = Registro(nombre_tabla, schema["columnas"])
         return registro_manager.leer_todos()
 
-    def _execute_indexed_select(self, nombre_tabla, schema, columnas, where_col, where_val, is_between, range_min, range_max):
+    def _execute_indexed_select(self, nombre_tabla, schema, columnas_disponibles, where_col, where_val, is_between, range_min, range_max):
         """
         Para SELECTs con condiciones WHERE (ideal para
         B+ Tree o un Sequential File por ejemplo)
@@ -421,24 +427,23 @@ class DBManager:
         posiciones = None
         algoritmo = "None"
         
-        actual_col_for_index = next((c["nombre"] for c in columnas if c["nombre"].lower() == where_col.lower()), None)
-        
+        actual_col_for_index = next((c for c in columnas_disponibles if c.lower() == where_col.lower()), None)
+
         if actual_col_for_index:
             col_info = next((c for c in schema["columnas"] if c["nombre"].lower() == actual_col_for_index.lower()), None)
             if col_info:
                 col_tipo = col_info['tipo']
-                
                 search_val_typed = None
                 range_min_typed = None
                 range_max_typed = None
 
-                if col_tipo == 'int':
+                if col_tipo.lower() == 'int':
                     if is_between:
                         range_min_typed = int(range_min)
                         range_max_typed = int(range_max)
                     else:
                         search_val_typed = int(where_val)
-                elif col_tipo.startswith('varchar'):
+                elif col_tipo.lower().startswith('varchar'):
                     if is_between:
                         range_min_typed = range_min
                         range_max_typed = range_max
@@ -461,11 +466,11 @@ class DBManager:
                                 if not is_between and all(isinstance(x, tuple) for x in posiciones):
                                     posiciones = [x[1] for x in posiciones]
                                 algoritmo = "BPLUS"
-                                print(f"BPLUS index used for query.")
+                                print(f"B+ usando para la query.")
                             else:
                                 posiciones = []
                         except Exception as e:
-                            print(f"Error using BPLUS index: {e}. Falling back to other index or full scan.")
+                            print(f"Error usando B+: {e}. Fallbackeando.")
                             posiciones = None # Fallback
 
                 # Probando el Sequential
@@ -483,17 +488,17 @@ class DBManager:
                                 
                                 if posiciones is not None:
                                     algoritmo = "SEQUENTIAL"
-                                    print(f"SEQUENTIAL index used for query.")
+                                    print(f"SEQUENTIAL usado para la query.")
                                 else:
                                     posiciones = []
                             except Exception as e:
-                                print(f"Error using SEQUENTIAL index: {e}. Falling back to full scan.")
+                                print(f"Error usando SEQUENTIAL: {e}. Fallbackeando.")
                                 posiciones = None # Fallback
         
         # Full scan pipipipipi
         registro_manager = Registro(nombre_tabla, schema["columnas"])
         all_records = registro_manager.leer_todos()
-        
+
         final_filtered_rows = []
         if posiciones is not None:
             for pos in posiciones:
@@ -527,7 +532,7 @@ class DBManager:
         
         return final_filtered_rows, algoritmo
 
-    def _execute_spatial_select(self, nombre_tabla, schema, columnas, box_coords, radius_params, knn_params):
+    def _execute_spatial_select(self, nombre_tabla, schema, columnas_disponibles, box_coords, radius_params, knn_params):
         """
         RTree, como trata con datos espaciales,
         tiene queries especificas, no compatibles

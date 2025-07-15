@@ -47,7 +47,7 @@ def parse_insert(query):
 
 def parse_create_index(query):
     query = query.strip().strip(";")
-    pattern = r"CREATE\s+INDEX\s+(\w+)\s+ON\s+(\w+)\s*\(\s*(\w+)\s*\)\s*(USING\s+(\w+))?"
+    pattern = r"CREATE\s+INDEX\s+(\w+)\s+ON\s+(\w+)\s*\(\s*([\w\s,]+)\s*\)\s*(USING\s+(\w+))?"
     match = re.match(pattern, query, re.IGNORECASE)
 
     if not match:
@@ -55,13 +55,13 @@ def parse_create_index(query):
 
     nombre = match.group(1)
     tabla = match.group(2)
-    columna = match.group(3)
+    columnas_raw = match.group(3)
     algoritmo = match.group(5).upper() if match.group(5) else "BPLUS"
 
     return {
         "nombre": nombre,
         "tabla": tabla,
-        "columna": columna,
+        "columna": columnas_raw,
         "algoritmo": algoritmo
     }
 

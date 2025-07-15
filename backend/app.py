@@ -51,4 +51,4 @@ if __name__ == "__main__":
     os.makedirs("tablas", exist_ok=True)
     os.makedirs("indices", exist_ok=True)
     
-    uvicorn.run("main:app", host="127.0.0.1", port=8000, reload=True)
+    uvicorn.run("app:app", host="127.0.0.1", port=8000, reload=True)
