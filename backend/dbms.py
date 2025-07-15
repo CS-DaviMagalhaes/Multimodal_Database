@@ -5,8 +5,9 @@ import re
 from registro import Registro
 
 from algoritmos.BPlusIdx import BPlusIndex
-from algoritmos.rtreeidx import RTreeIndex
-from algoritmos.seqindex import SequentialFile
+from algoritmos.RTreeIdx import RTreeIndex
+from algoritmos.SeqIdx import SequentialFile
+from algoritmos.IsamIdx import ISAMIndex
 
 from funciones import *
 
@@ -66,11 +67,24 @@ class DBManager:
                 col_tipo = col_info['tipo']
                 idx_instance = SequentialFile(filename=idx_filename, key_attr=nombre_columnas_key, key_type=col_tipo.lower())
 
+            elif algoritmo == "ISAM":
+                idx_filename = os.path.join("indices", f"{nombre_tabla}_{nombre_columnas_key}")
+                col_info = next((c for c in schema["columnas"] if c["nombre"].lower() == nombre_columnas_key.lower()), None)
+                
+                if not col_info:
+                    raise ValueError(f"No hay columna '{nombre_columnas_key}' para ISAM.")
+                
+                if col_info['tipo'].lower() != 'int':
+                    raise ValueError("ISAM solo soporta columnas de tipo INT como clave")
+                    
+                idx_instance = ISAMIndex(filename=idx_filename)
+
             elif algoritmo == "RTREE":
                 idx_filename = os.path.join("indices", f"{nombre_tabla}")
                 idx_instance = RTreeIndex(index_name=idx_filename)
             else:
                 raise ValueError(f"Algoritmo de índice '{algoritmo}' no soportado.")
+            
         except Exception as e:
             print(f"Error inicializando {algoritmo} para {nombre_tabla}.{nombre_columnas_key}: {e}")
             return None
@@ -149,7 +163,7 @@ class DBManager:
                     continue
 
                 try:
-                    if algoritmo == "BPLUS" or algoritmo == "SEQUENTIAL":
+                    if algoritmo == "BPLUS" or algoritmo == "SEQUENTIAL" or algoritmo == "ISAM":
                         col_info = next((c for c in tabla_columnas if c["nombre"].lower() == nombre_columnas_key.lower()), None)
                         if col_info:
                             col_idx = tabla_columnas.index(col_info)
@@ -217,6 +231,20 @@ class DBManager:
                 return {"error": "RTREE requiere que 'longitud' y 'latitud' sean INT."}
             
             idx_columna_filename_part = "longitud,latitud"
+
+        elif algoritmo == "ISAM":
+            if len(nombre_columnas_idx.split('.')) != 1:
+                return {"error" : "ISAM requiere exactamente una sola columna"}
+        
+            col_info = next((c for c in tabla_columnas if c["nombre"].lower() == nombre_columnas_idx.lower()), None)
+            if not col_info:
+                return {"error": f"No hay columna '{nombre_columnas_idx}' para tabla '{nombre_tabla}'."}
+        
+            if col_info['tipo'].lower() != 'int':
+                return {"error": "ISAM solo soporta columnas INT como clave"}
+        
+            idx_columna_filename_part = nombre_columnas_idx
+
         else:
             if len(nombre_columnas_idx.split(',')) != 1:
                  return {"error": f"{algoritmo} requiere exactamente una sola columna."}
@@ -234,6 +262,27 @@ class DBManager:
         if not idx_instance:
             return {"error": f"No se pudo inicializar el índice para el algoritmo '{algoritmo}'."}
 
+        # ISAM requiere un build inicial
+        if algoritmo == "ISAM":
+            result = self.build_isam_index(nombre_tabla, nombre_columnas_idx)
+            if "error" in result:
+                return result
+            
+            idx_meta_path = os.path.join("indices", f"{nombre_tabla}_{idx_columna_filename_part}.idx.meta")
+            idx_metadata = {
+                "nombre": nombre_idx,
+                "tabla": nombre_tabla,
+                "columnas": idx_columna_filename_part,
+                "algoritmo": algoritmo
+            }
+            with open(idx_meta_path, "w") as f:
+                json.dump(idx_metadata, f, indent=4)
+            
+            return {
+                "resultado": f"Índice ISAM '{nombre_idx}' creado en columna '{nombre_columnas_idx}'"
+            }
+
+        # Los otros algoritmos no
         registro_manager = Registro(nombre_tabla, tabla_columnas)
         all_records_data_list = registro_manager.leer_todos()
 
@@ -450,31 +499,50 @@ class DBManager:
                     else:
                         search_val_typed = where_val
 
-                # Probando B+
-                bplus_idx_info = next((idx for idx in self._get_all_indices_for_table(nombre_tabla)
-                                         if idx[1].lower() == actual_col_for_index.lower() and idx[2] == "BPLUS"), None)
-                if bplus_idx_info:
-                    bplus_instance = self._get_index_instance(nombre_tabla, actual_col_for_index, "BPLUS", schema)
-                    if bplus_instance:
+                # Probando ISAM
+                isam_idx_info = next((idx for idx in self._get_all_indices_for_table(nombre_tabla)
+                                if idx[1].lower() == actual_col_for_index.lower() and idx[2] == "ISAM"), None)
+            
+                if isam_idx_info: 
+                    isam_instance = self._get_index_instance(nombre_tabla, actual_col_for_index, "ISAM", schema)
+                    if isam_instance:
                         try:
                             if is_between:
-                                posiciones = bplus_instance.rangeSearch(range_min_typed, range_max_typed)
+                                posiciones = isam_instance.rangeSearch(range_min_typed, range_max_typed)
                             else:
-                                posiciones = bplus_instance.search(search_val_typed)
-                            
-                            if posiciones is not None:
-                                if not is_between and all(isinstance(x, tuple) for x in posiciones):
-                                    posiciones = [x[1] for x in posiciones]
-                                algoritmo = "BPLUS"
-                                print(f"B+ usando para la query.")
-                            else:
-                                posiciones = []
-                        except Exception as e:
-                            print(f"Error usando B+: {e}. Fallbackeando.")
-                            posiciones = None # Fallback
+                                posiciones = isam_instance.search(search_val_typed)
 
-                # Probando el Sequential
+                            if posiciones is not None:
+                                algoritmo = "ISAM"
+                                print(f"ISAM usado para la query.")
+                        except Exception as e:
+                            print(f"Error usando ISAM: {e}. Fallbackeando.")
+                
                 if posiciones is None:
+                    # Probando B+
+                    bplus_idx_info = next((idx for idx in self._get_all_indices_for_table(nombre_tabla)
+                                            if idx[1].lower() == actual_col_for_index.lower() and idx[2] == "BPLUS"), None)
+                    if bplus_idx_info:
+                        bplus_instance = self._get_index_instance(nombre_tabla, actual_col_for_index, "BPLUS", schema)
+                        if bplus_instance:
+                            try:
+                                if is_between:
+                                    posiciones = bplus_instance.rangeSearch(range_min_typed, range_max_typed)
+                                else:
+                                    posiciones = bplus_instance.search(search_val_typed)
+                                
+                                if posiciones is not None:
+                                    if not is_between and all(isinstance(x, tuple) for x in posiciones):
+                                        posiciones = [x[1] for x in posiciones]
+                                    algoritmo = "BPLUS"
+                                    print(f"B+ usando para la query.")
+                                else:
+                                    posiciones = []
+                            except Exception as e:
+                                print(f"Error usando B+: {e}. Fallbackeando.")
+                                posiciones = None # Fallback
+
+                    # Probando el Sequential
                     seq_idx_info = next((idx for idx in self._get_all_indices_for_table(nombre_tabla)
                                            if idx[1].lower() == actual_col_for_index.lower() and idx[2] == "SEQUENTIAL"), None)
                     if seq_idx_info:
@@ -594,3 +662,31 @@ class DBManager:
             "columnas": columnas,
             "registros": result_records
         }
+    
+    def build_isam_index(self, nombre_tabla, columna):
+        schema = self._load_table_schema(nombre_tabla)
+        if not schema:
+            return {"error": f"Tabla '{nombre_tabla}' no existe"}
+        
+        col_info = next((c for c in schema["columnas"] if c["nombre"].lower() == columna.lower()), None)
+        if not col_info:
+            return {"error": f"Columna '{columna}' no existe"}
+        
+        if col_info['tipo'].lower() != 'int':
+            return {"error": "ISAM solo soporta columnas INT"}
+        
+        registro_manager = Registro(nombre_tabla, schema["columnas"])
+        all_records = registro_manager.leer_todos()
+        col_idx = schema["columnas"].index(col_info)
+        
+        keys_positions = []
+        for pos, record in enumerate(all_records):
+            key = record[col_idx]
+            keys_positions.append((int(key), pos))
+        
+        idx_instance = self._get_index_instance(nombre_tabla, columna, "ISAM", schema)
+        if not idx_instance:
+            return {"error": "No se pudo crear instancia ISAM"}
+        
+        idx_instance.build(keys_positions)        
+        return {"resultado": f"Índice ISAM construido en '{columna}'"}
