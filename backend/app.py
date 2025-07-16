@@ -1,5 +1,6 @@
 from fastapi import FastAPI, Request, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
 import uvicorn
 from dbms import DBManager
 import os
@@ -16,6 +17,15 @@ app.add_middleware(
 )
 
 db_manager = DBManager()
+
+# Add image serving endpoint
+@app.get("/images/{image_name}")
+async def get_image(image_name: str):
+    image_path = f"C:/Users/davie/Downloads/fashion_small/images/{image_name}"
+    if os.path.exists(image_path):
+        return FileResponse(image_path)
+    else:
+        raise HTTPException(status_code=404, detail="Image not found")
 
 @app.post("/query")
 async def recibir_query(data: dict):
