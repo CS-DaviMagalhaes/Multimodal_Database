@@ -31,6 +31,12 @@ Sistema de Base de Datos Multimodal con Indexación Avanzada
 
 Este backend simula un sistema de base de datos que interpreta consultas SQL básicas (`CREATE TABLE`, `INSERT`, `SELECT`, `CREATE INDEX`) y las ejecuta sobre archivos binarios. Usa una estructura de almacenamiento personalizada junto con algoritmos de índices como B+ Tree, con soporte planificado para AVL y secuencial.
 
+### Correr Backend
+
+Primero es necesario extraer los descriptores (o cargar los archivos si es que ya fueron generados). Para eso es necesario correr los notebooks en `Image_descriptors`, `audio_descriptors` y `text_descriptors`. Note que en el notebook de `Image_descriptors` es necesario cambiar la ruta del dataset de imagenes.
+
+Luego correr backend con `python backend/main.py`.
+
 ### Funcionalidades implementadas:
 
 - **CREATE TABLE**: 
@@ -74,6 +80,13 @@ Este backend simula un sistema de base de datos que interpreta consultas SQL bá
 ## Frontend (React)
 
 Este frontend es una interfaz web simple para interactuar con el backend simulando una consola SQL. Permite enviar consultas manuales y visualizar resultados en tiempo real.
+
+### Correr Frontend
+
+Entrar al directorio `frontend` y correr los siguientes comandos: 
+- `npm install`
+- `npm start`
+Ignorar los warnings. Luego es solo entrar al enlace de localhost.
 
 ### ✨ Características:
 
