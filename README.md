@@ -469,9 +469,11 @@ Para cada término `t` de la consulta:
 2. Se itera sobre todos los bloques `block_i.pkl`:
    - Se carga el bloque.
    - Si el término `t` está presente, se actualizan los scores de los documentos usando:
-     \[
-     	ext{score}(q, d) = rac{\sum_{t} w_{tq} \cdot w_{td}}{\|q\| \cdot \|d\|}
-     \]
+    
+     ```
+     score(q, d) = sum(w_tq * w_td for t in query_terms) / (norm_q * norm_d)
+     ```
+     
 3. Se normaliza con la norma de la consulta y la norma del documento precalculada.
 4. Se utiliza `heapq` para mantener solo el **Top-k documentos más similares**.
 
