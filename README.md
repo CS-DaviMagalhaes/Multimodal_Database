@@ -434,17 +434,33 @@ Para cerrar la parte 1, se realizaron nuevos tests para comparar el rendimiento 
 
 ### Inserción
 
+![insertion_times_gauged](./imgs/Insertion_times.png)
+
 ### Búsqueda
 
+Para las búsquedas, se usaron 100 keys aleatorias, y se obtuvo el tiempo promedio de búsqueda.
+
+![search_times_gauged](./imgs/Search_times.png)
+
 ### Búsqueda por rango
+
+![range_search_times_gauged](./imgs/RangeSearch_times.png)
+
+### Borrado
+
+Para el borrado, se usaron 100 keys aleatorias, y se obtuvo el tiempo promedio de borrado.
+
+![remove_times_gauged](./imgs/Remove_times.png)
 
 ### ISAM: Construcción
 
 Como alternativa a las inserciones, se midió el tiempo de construcción del índice ISAM usando el método `ISAM.build()`.
 
+![build_times_gauged](./imgs/ISAMBuild_times.png)
+
 ### RTree: Spatial Queries
 
-*insertar grafico*
+![rtree_times_gauged](./imgs/RTree_times.png)
 
 ---
 
