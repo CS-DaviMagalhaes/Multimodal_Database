@@ -475,7 +475,25 @@ Para cada término `t` de la consulta:
 3. Se normaliza con la norma de la consulta y la norma del documento precalculada.
 4. Se utiliza `heapq` para mantener solo el **Top-k documentos más similares**.
 
-Esta estrategia permite escalar a millones de documentos y vocabularios grandes sin comprometer la eficiencia ni el uso de memoria.
+### Experimentación
+Se realizaron pruebas con diferentes tamaños de bloque (`block_size`) y queries variadas para observar el impacto en tiempo y uso de memoria. 
+Utilizamos un tamaño de bloque de 10000 y realizamos consultas para comparar los resultados con el modelo tsvector y gin de Pgadmin4
+
+# Comparación de Resultados: PostgreSQL vs SPIMI
+
+| Query       | Rank | PostgreSQL (case_id) | PostgreSQL (Score) | SPIMI (case_id) | SPIMI (Score) |
+|-------------|------|------------------------|---------------------|------------------|---------------|
+| contract    | 1    | Case22026              | 0.2569325            | Case22871        | 0.2982        |
+| breach      | 2    | Case16659              | 0.2491805            | Case24032        | 0.2837        |
+|             | 3    | Case24791              | 0.2438541            | Case24032        | 0.2837        |
+|             | 4    | Case24786              | 0.2438541            | Case24027        | 0.2794        |
+|             | 5    | Case24806              | 0.2438541            | Case11880        | 0.2768        |
+| high        | 1    | Case24280              | 0.0016323            | Case9            | 0.2427        |
+| court       | 2    | Case9                  | 0.0016129            | Case24281        | 0.2001        |
+| defamation  | 3    | Case24283              | 0.0013625            | Case540          | 0.1961        |
+| plaintiff   | 4    | Case540                | 0.0010989            | Case541          | 0.1961        |
+|             | 5    | Case541                | 0.0010989            | Case24295        | 0.1832        |
+
 
 ---
 ## Image Search
