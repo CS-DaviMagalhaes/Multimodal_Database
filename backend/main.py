@@ -11,6 +11,11 @@ from PIL import Image
 import io
 from image_search import ImageSearchEngine
 from audio_search import AudioSearchEngine
+# Add import for text search
+import sys
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from text_descriptors.query_text_search import query_from_blocks
+import pandas as pd
 
 
 app = FastAPI()
@@ -432,6 +437,40 @@ def select_todos(tabla: str):
         "columnas": columnas,
         "registros": resultado
     }
+
+# Load the CSV into a DataFrame for fast lookup
+LEGAL_TEXT_CSV = "data/legal_text_classification.csv"
+legal_text_df = None
+if os.path.exists(LEGAL_TEXT_CSV):
+    legal_text_df = pd.read_csv(LEGAL_TEXT_CSV, dtype=str)
+    legal_text_df.set_index("case_id", inplace=True)
+
+@app.post("/text-search")
+async def text_search(request: Request):
+    data = await request.json()
+    query = data.get("query", "")
+    k = int(data.get("k", 5))
+    if not query:
+        raise HTTPException(status_code=400, detail="Query is required.")
+    if legal_text_df is None:
+        raise HTTPException(status_code=500, detail="Legal text data not loaded.")
+    # Get top-k (case_id, score)
+    results = query_from_blocks(query, k=k)
+    output = []
+    for case_id, score in results:
+        case_id_str = str(case_id)
+        if case_id_str in legal_text_df.index:
+            row = legal_text_df.loc[case_id_str]
+            output.append({
+                "case_id": case_id_str,
+                "case_outcome": row.get("case_outcome", ""),
+                "case_title": row.get("case_title", ""),
+                "case_text": row.get("case_text", ""),
+                "score": score
+            })
+        else:
+            output.append({"case_id": case_id_str, "score": score, "error": "Not found in CSV"})
+    return {"results": output}
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="127.0.0.1", port=8000, reload=True)
