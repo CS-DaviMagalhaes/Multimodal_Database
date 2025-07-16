@@ -1,9 +1,16 @@
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, HTTPException, File, UploadFile, Form
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
 from funciones import *
 from registro import *
 import json
 import uvicorn
+import os
+import numpy as np
+from PIL import Image
+import io
+from image_search import ImageSearchEngine
+from audio_search import AudioSearchEngine
 
 
 app = FastAPI()
@@ -16,6 +23,92 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Initialize image search engine
+try:
+    image_search_engine = ImageSearchEngine()
+    print("Image search engine initialized successfully")
+except Exception as e:
+    print(f"Failed to initialize image search engine: {e}")
+    image_search_engine = None
+
+# Initialize audio search engine
+try:
+    audio_search_engine = AudioSearchEngine()
+    print("Audio search engine initialized successfully")
+except Exception as e:
+    print(f"Failed to initialize audio search engine: {e}")
+    audio_search_engine = None
+
+# Add image serving endpoint
+@app.get("/images/{image_name}")
+async def get_image(image_name: str):
+    image_path = f"C:/Users/davie/Downloads/fashion_small/images/{image_name}"
+    if os.path.exists(image_path):
+        return FileResponse(image_path)
+    else:
+        raise HTTPException(status_code=404, detail="Image not found")
+
+# Add audio serving endpoint
+@app.get("/audio/{audio_name}")
+async def get_audio(audio_name: str):
+    audio_path = os.path.join("data", "audios_1000", audio_name)
+    if os.path.exists(audio_path):
+        return FileResponse(audio_path)
+    else:
+        raise HTTPException(status_code=404, detail="Audio not found")
+
+@app.post("/image-search")
+async def image_search(image: UploadFile = File(...), k: int = Form(5)):
+    try:
+        if image_search_engine is None:
+            raise HTTPException(status_code=500, detail="Image search engine not available")
+        
+        print(f"Starting image search with k={k}")
+        
+        # Read the uploaded image
+        image_data = await image.read()
+        print(f"Read image data, size: {len(image_data)} bytes")
+        
+        # Perform real image search
+        print("Calling image search engine...")
+        results = image_search_engine.search(image_data, k)
+        print(f"Search completed, found {len(results)} results")
+        
+        return {"results": results}
+        
+    except Exception as e:
+        import traceback
+        print(f"Image search error: {e}")
+        print("Full traceback:")
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Image search failed: {str(e)}")
+
+@app.post("/audio-search")
+async def audio_search(audio: UploadFile = File(...), k: int = Form(5)):
+    try:
+        if audio_search_engine is None:
+            raise HTTPException(status_code=500, detail="Audio search engine not available")
+        
+        print(f"Starting audio search with k={k}")
+        
+        # Read the uploaded audio
+        audio_data = await audio.read()
+        print(f"Read audio data, size: {len(audio_data)} bytes")
+        
+        # Perform real audio search
+        print("Calling audio search engine...")
+        results = audio_search_engine.search(audio_data, k)
+        print(f"Audio search completed, found {len(results)} results")
+        
+        return {"results": results}
+        
+    except Exception as e:
+        import traceback
+        print(f"Audio search error: {e}")
+        print("Full traceback:")
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Audio search failed: {str(e)}")
 
 @app.post("/query")
 async def recibir_query(data: dict):
