@@ -42,7 +42,7 @@ Este backend simula un sistema de base de datos que interpreta consultas SQL bá
 
 Primero es necesario extraer los descriptores (o cargar los archivos si es que ya fueron generados). Para eso es necesario correr los notebooks en `Image_descriptors`, `audio_descriptors` y `text_descriptors`. Note que en el notebook de `Image_descriptors` es necesario cambiar la ruta del dataset de imagenes.
 
-Luego correr backend con `python backend/main.py`.
+Luego correr backend con `python backend/app.py`.
 
 ### Funcionalidades implementadas:
 
@@ -375,13 +375,6 @@ Se aplicó un ```remove()``` a 100 elementos aleatorios, promediando el tiempo f
 
 ---
 
-## Comparación entre estructuras
-Realizamos una comparación entre las estructuras utilizadas:
-
-*insertar grafico*
-
----
-
 ## B+ Index
 Con el objetivo de mejorar la eficiencia en las búsquedas sobre archivos de datos, se implementó un índice basado en un árbol B+ no agrupado (unclustered). Esta estructura permite mantener las claves ordenadas y enlazadas en nodos hoja, mientras que los datos reales se almacenan en un archivo separado. Las hojas contienen punteros a la posición física del registro en el archivo de datos.
 
@@ -429,6 +422,29 @@ m = 25: Tiempo de inserción = 31 segundos, Tamaño del archivo = 2.8 MB
 m = 100: Tiempo de inserción = 28 segundos, Tamaño del archivo = 2.6 MB
 
 Como se puede observar, aumentar el valor de m mejora tanto el tiempo de inserción como el uso de espacio, debido a que se reducen las divisiones de nodos y se mejora la compactación del árbol. Esto confirma que una mayor capacidad de fan-out en los nodos del B+ Tree puede resultar beneficiosa para datasets de tamaño considerable.
+
+---
+
+## Comparación entre estructuras
+Para cerrar la parte 1, se realizaron nuevos tests para comparar el rendimiento de los 5 índices implementados sobre las operaciones de inserción, queries y borrado. Cabe aclarar que dependendiendo de la implementación, ciertos índices no contaban con el soporte de ciertas operaciones. Además, el RTree solo soporta queries espaciales, por lo que su análisis irá separado al resto.
+
+- El tamaño de datasets para esta comparación fueron 1K, 10K, 50K y 100K registros del dataset `cities.csv`.
+- Extendible Hashing: se usó un factor de balanceo `fb = 6`, profundidad máxima `D = 10` y un threshold de buckets vacíos `EMPTY_THRESHOLD = 0.4`
+- B+ Tree: se usó un orden `m = 10`
+
+### Inserción
+
+### Búsqueda
+
+### Búsqueda por rango
+
+### ISAM: Construcción
+
+Como alternativa a las inserciones, se midió el tiempo de construcción del índice ISAM usando el método `ISAM.build()`.
+
+### RTree: Spatial Queries
+
+*insertar grafico*
 
 ---
 
