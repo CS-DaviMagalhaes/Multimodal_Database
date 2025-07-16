@@ -444,7 +444,7 @@ Para las búsquedas, se usaron 100 keys aleatorias, y se obtuvo el tiempo promed
 
 ### Búsqueda por rango
 
-![range_search_times_gauged](./imgs/RangeSearch_times.png)
+![range_search_times_gauged](./imgs/RangeSearch_Times.png)
 
 ### Borrado
 
@@ -460,7 +460,7 @@ Como alternativa a las inserciones, se midió el tiempo de construcción del ín
 
 ### RTree: Spatial Queries
 
-![rtree_times_gauged](./imgs/RTree_times.png)
+![rtree_times_gauged](./imgs/RTree_Times.png)
 
 ---
 
